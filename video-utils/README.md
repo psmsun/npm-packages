@@ -1,11 +1,11 @@
-# @psmsun/video-utils
+# @prismetic/video-utils
 
 Lightweight, zero-dependency utilities for extracting YouTube and VK video IDs from any URL format.
 
 ## Installation
 
 ```bash
-npm install @psmsun/video-utils
+npm install @prismetic/video-utils
 ```
 
 ---
@@ -15,7 +15,7 @@ npm install @psmsun/video-utils
 Extracts an 11-character YouTube video ID from any URL format, or returns a bare ID as-is.
 
 ```js
-import { extractYoutubeID } from "@psmsun/video-utils";
+import { extractYoutubeID } from "@prismetic/video-utils";
 
 extractYoutubeID("dQw4w9WgXcQ");
 // → "dQw4w9WgXcQ"
@@ -53,7 +53,7 @@ Extracts VK video `oid` and `id` from any VK video URL format or raw ID string.
 Returns `{ oid: string, id: string }` or `null`.
 
 ```js
-import { extractVKIDs } from "@psmsun/video-utils";
+import { extractVKIDs } from "@prismetic/video-utils";
 
 extractVKIDs("-178652725_456239064");
 // → { oid: "-178652725", id: "456239064" }
@@ -86,7 +86,7 @@ Replace the local import wherever you have it:
 
 ```diff
 - import { extractVKIDs, extractYoutubeID } from "@/lib/videoIdUtils";
-+ import { extractVKIDs, extractYoutubeID } from "@psmsun/video-utils";
++ import { extractVKIDs, extractYoutubeID } from "@prismetic/video-utils";
 ```
 
 ---

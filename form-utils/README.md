@@ -1,11 +1,11 @@
-# @psmsun/form-utils
+# @prismetic/form-utils
 
 NeverBounce email gating for embedded ActiveCampaign forms, for React 19 / Next 16.
 
 The AC form is injected by a remote script after render, so this waits for it rather than assuming it exists, then intercepts submission in the capture phase to hold the form until NeverBounce returns a verdict.
 
 ```bash
-npm install @psmsun/form-utils
+npm install @prismetic/form-utils
 ```
 
 Requires the NeverBounce widget on the page — the package reads `window._nb`, it never owns the API key:
@@ -39,7 +39,7 @@ import {
   HTMLContent,
   useFormContentFlags,
   useNeverBounceEmailGate,
-} from "@psmsun/form-utils";
+} from "@prismetic/form-utils";
 import { cn } from "@/lib/utils";
 import Consent from "./Consent";
 

@@ -1,7 +1,7 @@
 {
   "name": "npm-packages",
   "private": true,
-  "description": "Prismetic @psmsun npm packages",
+  "description": "Prismetic @prismetic npm packages",
   "type": "module",
   "workspaces": [
     "form-utils",

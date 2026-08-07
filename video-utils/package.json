@@ -1,5 +1,5 @@
 {
-  "name": "@psmsun/video-utils",
+  "name": "@prismetic/video-utils",
   "version": "1.0.2",
   "description": "YouTube and VK video ID extraction utilities",
   "type": "module",

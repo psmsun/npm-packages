@@ -1,4 +1,4 @@
-# @psmsun packages
+# @prismetic packages
 
 Monorepo for Prismetic's published npm packages. Managed with [npm workspaces](https://docs.npmjs.com/cli/using-npm/workspaces); each package is versioned and released independently.
 
@@ -6,8 +6,8 @@ Monorepo for Prismetic's published npm packages. Managed with [npm workspaces](h
 
 | Package | Description |
 | --- | --- |
-| [`@psmsun/form-utils`](./form-utils) | NeverBounce email gating for embedded ActiveCampaign forms — React 19 / Next 16 |
-| [`@psmsun/video-utils`](./video-utils) | YouTube and VK video ID extraction utilities |
+| [`@prismetic/form-utils`](./form-utils) | NeverBounce email gating for embedded ActiveCampaign forms — React 19 / Next 16 |
+| [`@prismetic/video-utils`](./video-utils) | YouTube and VK video ID extraction utilities |
 
 ## Development
 
