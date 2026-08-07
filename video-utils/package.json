@@ -1,0 +1,34 @@
+{
+  "name": "@psmsun/video-utils",
+  "version": "1.0.2",
+  "description": "YouTube and VK video ID extraction utilities",
+  "type": "module",
+  "main": "src/index.js",
+  "types": "src/index.d.ts",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "files": [
+    "src"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/psmsun/npm-packages.git",
+    "directory": "video-utils"
+  },
+  "homepage": "https://github.com/psmsun/npm-packages/tree/main/video-utils#readme",
+  "bugs": {
+    "url": "https://github.com/psmsun/npm-packages/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "youtube",
+    "vk",
+    "video",
+    "video-id",
+    "extract"
+  ],
+  "license": "MIT"
+}

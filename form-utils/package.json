@@ -1,0 +1,51 @@
+{
+  "name": "@psmsun/form-utils",
+  "version": "1.0.0",
+  "description": "NeverBounce email gating for embedded ActiveCampaign forms — React 19 / Next 16",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/psmsun/npm-packages.git",
+    "directory": "form-utils"
+  },
+  "homepage": "https://github.com/psmsun/npm-packages/tree/main/form-utils#readme",
+  "bugs": {
+    "url": "https://github.com/psmsun/npm-packages/issues"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "prepublishOnly": "vitest run && tsc"
+  },
+  "peerDependencies": {
+    "react": ">=18"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.17",
+    "typescript": "^6.0.3",
+    "vitest": "^3.2.4"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "neverbounce",
+    "activecampaign",
+    "email-validation",
+    "react",
+    "nextjs",
+    "form"
+  ],
+  "license": "MIT"
+}

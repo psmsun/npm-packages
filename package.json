@@ -1,0 +1,15 @@
+{
+  "name": "npm-packages",
+  "private": true,
+  "description": "Prismetic @psmsun npm packages",
+  "type": "module",
+  "workspaces": [
+    "form-utils",
+    "video-utils"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present"
+  },
+  "license": "MIT"
+}
