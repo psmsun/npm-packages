@@ -18,3 +18,4 @@ export {
   useFormContentFlags,
 } from "./useFormContentFlags.js";
 export { useNeverBounceEmailGate } from "./useNeverBounceEmailGate.js";
+export { type UtmSearchParams, useUtmIframe } from "./useUtmIframe.js";

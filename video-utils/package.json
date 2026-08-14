@@ -1,6 +1,6 @@
 {
   "name": "@prismetic/video-utils",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "YouTube and VK video ID extraction utilities",
   "type": "module",
   "main": "src/index.js",
@@ -11,6 +11,9 @@
   "files": [
     "src"
   ],
+  "scripts": {
+    "test": "node --test"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/psmsun/npm-packages.git",

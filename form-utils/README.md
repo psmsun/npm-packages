@@ -90,6 +90,28 @@ What it does:
 - **Fails open.** After `NB_VERIFY_TIMEOUT_MS` (30s) with no verdict, the submission goes through. Holding back a real registrant costs more than letting one bounce through.
 - Removes every listener, timer and tooltip on unmount.
 
+## `useUtmIframe(formId, searchParams, deps?)`
+
+For pages whose form is an embedded CRM iframe rather than an ActiveCampaign script. Appends UTM params to the iframe's `src` and keeps its height in sync with the embed's `postMessage`.
+
+| arg | type | |
+| --- | --- | --- |
+| `formId` | `string \| number \| null` | id of the iframe the embed renders; falsy is a no-op |
+| `searchParams` | `{ get(name): string \| null }` | Next's `useSearchParams()` satisfies this |
+| `deps` | `unknown[]` | extra values that should re-run the wiring |
+
+```tsx
+const searchParams = useSearchParams();
+useUtmIframe(props.data.FormId, searchParams, [isYandexForm]);
+```
+
+- UTMs come from the current URL when present, otherwise from the `utmParams` entry in `sessionStorage` — so a visitor who lands on a campaign URL and later navigates to the form keeps their attribution.
+- The embed injects its iframe asynchronously, so this retries across up to 40 animation frames rather than assuming the element is already there.
+- Picks the right separator (`?` vs `&`), so a src with no existing query string isn't corrupted.
+- Reports a Yandex Metrica goal when the CRM posts `{ action: "form-sent", yandexCounterId, yandexCounterGoal }`. A no-op on sites without Metrica.
+
+`searchParams` is passed in rather than read from `next/navigation` inside the package, which keeps `react` as the only peer dependency.
+
 ## `useFormContentFlags(html)`
 
 Returns `{ isYandexForm, isFormContent }` — which provider the embed is, and whether it carries copy of its own (`p`/`span`/`label`) rather than just form controls. Both start `false` and settle after mount, since the parse needs a DOM.

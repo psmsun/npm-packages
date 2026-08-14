@@ -32,12 +32,16 @@ extractYoutubeID("https://youtube.com/shorts/dQw4w9WgXcQ");
 extractYoutubeID("https://www.youtube.com/live/dQw4w9WgXcQ");
 // → "dQw4w9WgXcQ"
 
+extractYoutubeID("dQw4w9WgXcQ&t=4s");
+// → "dQw4w9WgXcQ"
+
 extractYoutubeID(null);
 // → null
 ```
 
 **Supported formats:**
 - Bare ID (`dQw4w9WgXcQ`)
+- Bare ID with pasted share params (`dQw4w9WgXcQ&t=4s`)
 - `youtube.com/watch?v=ID`
 - `youtu.be/ID`
 - `youtube.com/embed/ID`
@@ -73,6 +77,7 @@ extractVKIDs(null);
 
 **Supported formats:**
 - Raw `oid_id` or `-oid_id`
+- Raw `oid_id` with pasted share params (`-178652725_456239064&t=4s`)
 - `vk.com/video_ext.php?oid=...&id=...`
 - `vk.com/video{oid}_{id}`
 - `vk.com/clip{oid}_{id}`

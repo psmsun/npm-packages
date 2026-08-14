@@ -6,14 +6,17 @@
 //   https://www.youtube.com/embed/dQw4w9WgXcQ
 //   https://youtube.com/shorts/dQw4w9WgXcQ
 //   https://www.youtube.com/live/dQw4w9WgXcQ
+//   dQw4w9WgXcQ&t=4s                                          (bare ID + pasted share params)
 
 export function extractYoutubeID(input) {
   if (!input) return null;
 
   const str = input.trim();
 
-  // Already a bare ID (11 chars, no slashes or spaces)
-  if (/^[a-zA-Z0-9_-]{11}$/.test(str)) return str;
+  // Already a bare ID (11 chars), optionally trailed by share params pasted
+  // along with it. Anchored, so it can never match part-way into a URL.
+  const bare = str.match(/^([a-zA-Z0-9_-]{11})(?:[?&#].*)?$/);
+  if (bare) return bare[1];
 
   try {
     const url = new URL(str);
@@ -50,6 +53,7 @@ export function extractYoutubeID(input) {
 //   https://vk.com/video215336036_165406371                   (user: oid is positive)
 //   https://vk.com/clip-12345678_456239123
 //   oid=-178652725&id=456239064&hash=...                      (query string fragment)
+//   -178652725_456239064&t=4s                                 (raw oid_id + pasted params)
 //
 // Returns { oid: string, id: string } with correct sign on oid, or null.
 
@@ -93,8 +97,8 @@ export function extractVKIDs(input) {
     if (oid && id) return { oid: negateOid(oid), id };
   }
 
-  // ── 3. Raw  oid_id  or  -oid_id ───────────────────────────────────────────
-  const rawMatch = str.match(/^(-?\d+)_(\d+)$/);
+  // ── 3. Raw  oid_id  or  -oid_id, with any pasted params trailing ──────────
+  const rawMatch = str.match(/^(-?\d+)_(\d+)(?:[?&#].*)?$/);
   if (rawMatch) return { oid: negateOid(rawMatch[1]), id: rawMatch[2] };
 
   return null;

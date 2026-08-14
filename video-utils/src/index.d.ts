@@ -9,6 +9,7 @@
  * - `youtube.com/embed/ID`
  * - `youtube.com/shorts/ID`
  * - `youtube.com/live/ID`
+ * - Bare ID with pasted share params: `dQw4w9WgXcQ&t=4s`
  */
 export declare function extractYoutubeID(input: string | null | undefined): string | null;
 
@@ -22,5 +23,6 @@ export declare function extractYoutubeID(input: string | null | undefined): stri
  * - `vk.com/video{oid}_{id}`
  * - `vk.com/clip{oid}_{id}`
  * - Query string fragment `oid=...&id=...`
+ * - Raw `oid_id` with pasted share params: `-178652725_456239064&t=4s`
  */
 export declare function extractVKIDs(input: string | null | undefined): { oid: string; id: string } | null;
