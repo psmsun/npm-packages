@@ -5,6 +5,8 @@
   "type": "module",
   "workspaces": [
     "form-utils",
+    "link-utils",
+    "text-utils",
     "video-utils"
   ],
   "scripts": {

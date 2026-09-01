@@ -1,7 +1,7 @@
 {
-  "name": "@prismetic/form-utils",
-  "version": "1.2.0",
-  "description": "NeverBounce email gating for embedded ActiveCampaign forms \u2014 React 19 / Next 16",
+  "name": "@prismetic/link-utils",
+  "version": "1.0.0",
+  "description": "CMS href normalisation for Next.js sites — bare domains, external targets, static-file prefetch",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -9,19 +9,17 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
-    },
-    "./styles.css": "./styles.css"
+    }
   },
   "files": [
-    "dist",
-    "styles.css"
+    "dist"
   ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/psmsun/npm-packages.git",
-    "directory": "form-utils"
+    "directory": "link-utils"
   },
-  "homepage": "https://github.com/psmsun/npm-packages/tree/main/form-utils#readme",
+  "homepage": "https://github.com/psmsun/npm-packages/tree/main/link-utils#readme",
   "bugs": {
     "url": "https://github.com/psmsun/npm-packages/issues"
   },
@@ -30,11 +28,7 @@
     "test": "vitest run",
     "prepublishOnly": "vitest run && tsc"
   },
-  "peerDependencies": {
-    "react": ">=18"
-  },
   "devDependencies": {
-    "@types/react": "^19.2.17",
     "typescript": "^6.0.3",
     "vitest": "^3.2.4"
   },
@@ -42,12 +36,12 @@
     "access": "public"
   },
   "keywords": [
-    "neverbounce",
-    "activecampaign",
-    "email-validation",
-    "react",
+    "url",
+    "href",
     "nextjs",
-    "form"
+    "cms",
+    "strapi",
+    "link"
   ],
   "license": "MIT"
 }

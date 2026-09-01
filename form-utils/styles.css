@@ -1,0 +1,342 @@
+/*!
+ * @prismetic/form-utils — Wisent/ITE registration widget stylesheet
+ *
+ * The widget (https://wisent-live-online.website.yandexcloud.net/app.js) mounts into
+ * `#app` and renders `div.container-registration > div#ite_vr > …` using Bootstrap-3
+ * class names. It ships NO CSS of its own, which is why every ITE site grew its own
+ * copy of these rules and they drifted. This file is the single fleet-wide baseline.
+ *
+ * Scope is `.container-registration` — emitted by the widget itself — so the rules
+ * apply regardless of which wrapper class the host `Form` component happens to set.
+ *
+ * PopMechanic is deliberately NOT covered here: only Mitt embeds it, and its three
+ * corrective rules stay in that repo's globals.css.
+ *
+ * Per-site theming: override the custom properties below on any ancestor, e.g.
+ *   .container-registration { --ite-form-accent: var(--mainColor1); }
+ */
+
+.container-registration {
+  /* Palette — override per site if the brand colour is contrast-verified */
+  --ite-form-accent: #000000;
+  --ite-form-accent-fg: #ffffff;
+  --ite-form-accent-hover: #000000;
+  --ite-form-accent-hover-fg: #ffffff;
+
+  /* Text */
+  --ite-form-text: #1a1a1a;
+  --ite-form-muted: #4f616c;
+  --ite-form-error: #d32f2f;
+
+  /* Fields */
+  --ite-form-field-bg: #ffffff;
+  --ite-form-field-fg: var(--ite-form-text);
+  --ite-form-border: rgba(0, 0, 0, 0.25);
+  --ite-form-border-focus: var(--ite-form-accent);
+  --ite-form-placeholder: rgba(0, 0, 0, 0.45);
+
+  /* Structure */
+  --ite-form-rule: rgba(0, 0, 0, 0.2);
+  --ite-form-radius: 0px;
+  --ite-form-max-width: 1200px;
+  --ite-form-padding-block: 100px;
+  --ite-form-padding-inline: 20px;
+  --ite-form-field-max-width: 400px;
+
+  /* Step heading — `capitalize` mangles Cyrillic, so it is opt-in */
+  --ite-form-step-transform: none;
+
+  max-width: var(--ite-form-max-width);
+  padding: var(--ite-form-padding-block) var(--ite-form-padding-inline);
+  color: var(--ite-form-text);
+}
+
+/* The host page often paints backgrounds onto bare spans; the widget uses them
+   for inline text and progress-bar fills. */
+.container-registration span {
+  background: transparent !important;
+}
+
+/* ============================================================
+   Structure
+   ============================================================ */
+
+.container-registration #ite_vr .progress_bar {
+  background: transparent;
+  position: relative !important;
+  padding: 0 !important;
+  margin-bottom: 0;
+}
+
+.container-registration #ite_vr .inner_wrap {
+  margin-top: 50px !important;
+}
+
+.container-registration #ite_vr .segment + .segment {
+  margin-top: 40px;
+}
+
+/* ============================================================
+   Step heading
+   ============================================================ */
+
+.container-registration #ite_vr .step_name {
+  width: fit-content !important;
+  font-size: 25px !important;
+  line-height: 1.3;
+  font-weight: 700;
+  color: var(--ite-form-text);
+  text-transform: var(--ite-form-step-transform);
+  padding: 0 0 8px;
+  border-bottom: 1px solid var(--ite-form-rule);
+}
+
+/* ============================================================
+   Labels, notes, validation
+   ============================================================ */
+
+.container-registration #ite_vr .form-group {
+  margin-bottom: 20px !important;
+}
+
+.container-registration #ite_vr .form-group > label,
+.container-registration #ite_vr .form-label {
+  display: block;
+  padding: 0 !important;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+  color: var(--ite-form-text);
+}
+
+.container-registration #ite_vr .required_dot {
+  color: var(--ite-form-error);
+  margin-left: 4px;
+}
+
+.container-registration #ite_vr .form-group p {
+  margin-block: 1rem !important;
+  color: var(--ite-form-muted);
+}
+
+.container-registration #ite_vr .form-group p strong {
+  font-weight: 700;
+}
+
+.container-registration #ite_vr .form-group p .note-mark,
+.container-registration #ite_vr .form-group p .note-text {
+  font-size: 25px !important;
+  color: var(--ite-form-text);
+}
+
+.container-registration #ite_vr .form-group p .note-text div {
+  margin-top: 1rem !important;
+}
+
+.container-registration #ite_vr .form-group .note-text a {
+  text-decoration: underline !important;
+}
+
+.container-registration #ite_vr .help-block,
+.container-registration #ite_vr .error-message {
+  display: block;
+  width: fit-content;
+  margin-top: 6px;
+  font-size: 12px !important;
+  color: var(--ite-form-error);
+}
+
+/* ============================================================
+   Fields
+   ============================================================ */
+
+.container-registration #ite_vr input,
+.container-registration #ite_vr select,
+.container-registration #ite_vr textarea {
+  width: 100%;
+  max-width: var(--ite-form-field-max-width);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  padding-block: 10px;
+  padding-inline: 10px;
+  color: var(--ite-form-field-fg);
+  background-color: var(--ite-form-field-bg);
+  border: 1px solid var(--ite-form-border);
+  border-radius: var(--ite-form-radius);
+  appearance: none;
+}
+
+.container-registration #ite_vr input::placeholder,
+.container-registration #ite_vr textarea::placeholder {
+  color: var(--ite-form-placeholder);
+}
+
+.container-registration #ite_vr input:focus-visible,
+.container-registration #ite_vr select:focus-visible,
+.container-registration #ite_vr textarea:focus-visible {
+  outline: 2px solid var(--ite-form-border-focus);
+  outline-offset: 1px;
+  border-color: var(--ite-form-border-focus);
+}
+
+.container-registration #ite_vr input[type="text"],
+.container-registration #ite_vr input[type="email"],
+.container-registration #ite_vr input[type="tel"],
+.container-registration #ite_vr select {
+  height: 50px !important;
+}
+
+.container-registration #ite_vr .phoneCodeInput {
+  width: fit-content !important;
+  max-width: fit-content !important;
+}
+
+/* The widget renders <select class="btn btn-light dropdown-toggle"> — it is a field,
+   not a button, so the button rules below must not reach it. */
+.container-registration #ite_vr select.btn {
+  background-color: var(--ite-form-field-bg);
+  color: var(--ite-form-field-fg);
+  text-align: start;
+}
+
+/* ============================================================
+   Checkboxes & radios
+   ============================================================ */
+
+.container-registration #ite_vr .checkbox,
+.container-registration #ite_vr .radio {
+  display: flex;
+  align-items: center;
+  margin-bottom: 6px !important;
+  color: var(--ite-form-muted);
+}
+
+.container-registration #ite_vr .radio {
+  margin-bottom: 1rem !important;
+}
+
+.container-registration #ite_vr .checkbox label,
+.container-registration #ite_vr .radio label,
+.container-registration #ite_vr .checkbox-label {
+  margin-bottom: 0 !important;
+  margin-left: 15px !important;
+  font-weight: 400;
+  color: var(--ite-form-muted) !important;
+  cursor: pointer;
+}
+
+.container-registration #ite_vr input[type="checkbox"],
+.container-registration #ite_vr input[type="radio"] {
+  width: auto;
+  max-width: none;
+  height: auto !important;
+  margin-top: 0 !important;
+  padding: 0;
+  border: 0;
+  accent-color: var(--ite-form-accent);
+}
+
+.container-registration #ite_vr input[type="checkbox"]::before,
+.container-registration #ite_vr input[type="radio"]::before {
+  content: "";
+}
+
+/* ============================================================
+   Buttons
+   ============================================================ */
+
+.container-registration button.btn,
+.container-registration #ite_vr .btn-toolbar button,
+.container-registration #ite_vr .apply-promocode,
+.container-registration #ite_vr .print_ticket,
+.container-registration #ite_vr .save_ticket,
+.container-registration #ite_vr .pay_ticket {
+  font-size: 1.25rem !important;
+  line-height: 1.75rem !important;
+  background-color: var(--ite-form-accent) !important;
+  color: var(--ite-form-accent-fg) !important;
+  border: none !important;
+  outline: none !important;
+  border-radius: var(--ite-form-radius) !important;
+  padding-inline: 2.5rem !important;
+  padding-block: 1rem !important;
+  cursor: pointer;
+}
+
+.container-registration button.btn:hover,
+.container-registration #ite_vr .btn-toolbar button:hover,
+.container-registration #ite_vr .apply-promocode:hover,
+.container-registration #ite_vr .print_ticket:hover,
+.container-registration #ite_vr .save_ticket:hover,
+.container-registration #ite_vr .pay_ticket:hover {
+  background-color: var(--ite-form-accent-hover) !important;
+  color: var(--ite-form-accent-hover-fg) !important;
+}
+
+.container-registration button.btn:focus-visible,
+.container-registration #ite_vr .btn-toolbar button:focus-visible {
+  outline: 2px solid var(--ite-form-border-focus) !important;
+  outline-offset: 2px;
+}
+
+.container-registration #ite_vr .btn-toolbar {
+  display: flex !important;
+  justify-content: space-between;
+  gap: 20px;
+  margin-top: 60px;
+}
+
+.container-registration #ite_vr .pay_ticket {
+  margin-top: 1.25rem;
+}
+
+.container-registration #ite_vr .save_ticket {
+  margin-top: 4rem !important;
+}
+
+/* The promo-code row is a label/field/button trio the widget lays out vertically. */
+.container-registration #ite_vr .promocode-section {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 15px;
+}
+
+.container-registration #ite_vr .promocode-section .form-group {
+  margin-bottom: 0 !important;
+}
+
+/* ============================================================
+   Responsive
+   ============================================================ */
+
+@media (max-width: 768px) {
+  .container-registration {
+    --ite-form-padding-block: 48px;
+    --ite-form-padding-inline: 16px;
+    --ite-form-field-max-width: 100%;
+  }
+
+  .container-registration #ite_vr .step_name {
+    font-size: 20px !important;
+  }
+
+  .container-registration #ite_vr .form-group p .note-mark,
+  .container-registration #ite_vr .form-group p .note-text {
+    font-size: 18px !important;
+  }
+
+  .container-registration #ite_vr .btn-toolbar {
+    margin-top: 40px;
+  }
+
+  .container-registration button.btn,
+  .container-registration #ite_vr .btn-toolbar button,
+  .container-registration #ite_vr .apply-promocode,
+  .container-registration #ite_vr .print_ticket,
+  .container-registration #ite_vr .save_ticket,
+  .container-registration #ite_vr .pay_ticket {
+    font-size: 1rem !important;
+    padding-inline: 1.5rem !important;
+    padding-block: 0.75rem !important;
+  }
+}

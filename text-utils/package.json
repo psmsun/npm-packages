@@ -1,7 +1,7 @@
 {
-  "name": "@prismetic/form-utils",
-  "version": "1.2.0",
-  "description": "NeverBounce email gating for embedded ActiveCampaign forms \u2014 React 19 / Next 16",
+  "name": "@prismetic/text-utils",
+  "version": "1.0.0",
+  "description": "Render [label](url) links inside plain-text CMS fields — React 19 / Next 16",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -9,19 +9,17 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
-    },
-    "./styles.css": "./styles.css"
+    }
   },
   "files": [
-    "dist",
-    "styles.css"
+    "dist"
   ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/psmsun/npm-packages.git",
-    "directory": "form-utils"
+    "directory": "text-utils"
   },
-  "homepage": "https://github.com/psmsun/npm-packages/tree/main/form-utils#readme",
+  "homepage": "https://github.com/psmsun/npm-packages/tree/main/text-utils#readme",
   "bugs": {
     "url": "https://github.com/psmsun/npm-packages/issues"
   },
@@ -42,12 +40,12 @@
     "access": "public"
   },
   "keywords": [
-    "neverbounce",
-    "activecampaign",
-    "email-validation",
+    "markdown",
+    "links",
+    "cms",
+    "strapi",
     "react",
-    "nextjs",
-    "form"
+    "nextjs"
   ],
   "license": "MIT"
 }

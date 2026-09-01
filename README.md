@@ -7,6 +7,8 @@ Monorepo for Prismetic's published npm packages. Managed with [npm workspaces](h
 | Package | Description |
 | --- | --- |
 | [`@prismetic/form-utils`](./form-utils) | NeverBounce email gating for embedded ActiveCampaign forms — React 19 / Next 16 |
+| [`@prismetic/link-utils`](./link-utils) | CMS href normalisation — bare domains, external targets, static-file prefetch |
+| [`@prismetic/text-utils`](./text-utils) | Render `[label](url)` links inside plain-text CMS fields — React 19 / Next 16 |
 | [`@prismetic/video-utils`](./video-utils) | YouTube and VK video ID extraction utilities |
 
 ## Development
