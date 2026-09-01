@@ -4,6 +4,7 @@
   "description": "Prismetic @prismetic npm packages",
   "type": "module",
   "workspaces": [
+    "article-filters",
     "form-utils",
     "link-utils",
     "text-utils",

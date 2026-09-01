@@ -1,0 +1,147 @@
+/*
+ * Shared defaults for @prismetic/article-filters.
+ *
+ * Plain CSS on purpose. Tailwind utilities living inside a package would need
+ * an @source directive in every consuming globals.css pointing into
+ * node_modules — which is a pnpm symlink locally but a real directory under
+ * Azure's npm install, so the emitted CSS can differ between local and CI.
+ * Per-site overrides come in through the component's classNames props, where
+ * the strings sit in the site's own source and its scanner already sees them.
+ *
+ * Colours read from each site's own custom properties with a neutral
+ * fallback, so a site that defines --mainColor1 gets its brand automatically.
+ */
+
+.article-filter-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-block-end: 2rem;
+}
+
+@media (width >= 640px) {
+  .article-filter-bar {
+    flex-direction: row;
+    gap: 2rem;
+  }
+}
+
+.article-filter-bar__control {
+  display: flex;
+  min-width: 0;
+}
+
+.article-filter-bar__trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  inline-size: 100%;
+  padding-block: 0.25rem 0.5rem;
+  border: 0;
+  border-block-end: 1px solid var(--mainColor1, currentColor);
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  text-align: start;
+  cursor: pointer;
+}
+
+@media (width >= 640px) {
+  .article-filter-bar__control {
+    /* Fixed so the underline does not jump when the label changes from
+       "All topics" to "2 topics". */
+    inline-size: 15rem;
+  }
+
+  .article-filter-bar__control:not(:first-child) {
+    inline-size: 12.5rem;
+  }
+}
+
+.article-filter-bar__icon {
+  inline-size: 1.125rem;
+  block-size: 1.125rem;
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+.article-filter-bar__trigger[data-state="open"] .article-filter-bar__icon {
+  transform: rotate(180deg);
+}
+
+.article-filter-bar__panel {
+  min-inline-size: 17.5rem;
+  max-block-size: 22.5rem;
+  overflow-y: auto;
+  padding-block: 0.5rem;
+  background: var(--background, #fff);
+  color: inherit;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 12%);
+  z-index: 50;
+}
+
+.article-filter-bar__option {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  inline-size: 100%;
+  padding: 0.375rem 1rem;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.article-filter-bar__option:hover,
+.article-filter-bar__option:focus-visible {
+  background: rgb(0 0 0 / 4%);
+}
+
+.article-filter-bar__option-label {
+  min-inline-size: 0;
+}
+
+.article-filter-bar__count {
+  margin-inline-start: auto;
+  padding-inline-start: 1rem;
+  opacity: 0.6;
+  font-size: 0.875em;
+}
+
+.article-filter-bar__checkbox {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 1.125rem;
+  block-size: 1.125rem;
+  flex-shrink: 0;
+  padding: 0;
+  border: 1px solid currentColor;
+  border-radius: 0.25rem;
+  background: none;
+  color: inherit;
+}
+
+.article-filter-bar__checkbox svg {
+  inline-size: 0.875rem;
+  block-size: 0.875rem;
+}
+
+.article-filter-bar__clear {
+  display: block;
+  inline-size: 100%;
+  padding: 0.75rem 1rem 0.5rem;
+  border: 0;
+  background: none;
+  color: var(--mainColor2, #b00020);
+  font: inherit;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-align: start;
+  text-transform: uppercase;
+  cursor: pointer;
+}
