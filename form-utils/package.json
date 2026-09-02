@@ -1,6 +1,6 @@
 {
   "name": "@prismetic/form-utils",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "NeverBounce email gating for embedded ActiveCampaign forms \u2014 React 19 / Next 16",
   "type": "module",
   "main": "dist/index.js",

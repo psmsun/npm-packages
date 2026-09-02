@@ -149,7 +149,12 @@
    Fields
    ============================================================ */
 
-.container-registration #ite_vr input,
+/* Checkboxes and radios are excluded: `appearance: none` below strips the native
+   widget, and they have no intrinsic size of their own, so they would collapse to
+   0x0 and become invisible AND unclickable. The exclusion is wrapped in `:where()`
+   so it adds ZERO specificity — a bare `:not([type="checkbox"]):not([type="radio"])`
+   would outweigh the `:focus-visible` rule below and kill its `border-color`. */
+.container-registration #ite_vr input:not(:where([type="checkbox"], [type="radio"])),
 .container-registration #ite_vr select,
 .container-registration #ite_vr textarea {
   width: 100%;
@@ -226,12 +231,10 @@
 
 .container-registration #ite_vr input[type="checkbox"],
 .container-registration #ite_vr input[type="radio"] {
-  width: auto;
-  max-width: none;
-  height: auto !important;
+  width: 16px;
+  height: 16px !important;
+  flex: none;
   margin-top: 0 !important;
-  padding: 0;
-  border: 0;
   accent-color: var(--ite-form-accent);
 }
 
