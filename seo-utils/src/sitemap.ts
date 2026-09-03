@@ -3,7 +3,21 @@
  * noIndex: true. Consumed by each site's next-sitemap.config.js, which is CommonJS
  * and loads this ESM entry through Node's require(esm) (Node 20.19+ / 22.12+). Keep
  * this module free of top-level await and of React so that keeps working.
+ *
+ * The same entry also carries the other next-sitemap helpers: the robots.txt
+ * Content-Signal transform and the llms.txt generator (Node-only, never bundled).
  */
+
+export {
+  contentSignalRobotsTxt,
+  DEFAULT_CONTENT_SIGNAL,
+  type TransformRobotsTxt,
+} from "./robots.js";
+export {
+  generateLlmsTxt,
+  type LlmsTxtOptions,
+  type PostFetchLike,
+} from "./llmsTxt.js";
 
 const STRAPI_NOINDEX_FILTER =
   "filters%5Bseo%5D%5BnoIndex%5D%5B%24eq%5D=true&pagination%5BpageSize%5D=500";
