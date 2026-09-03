@@ -1,0 +1,58 @@
+{
+  "name": "@prismetic/seo-utils",
+  "version": "1.0.0",
+  "description": "Next.js metadata, JSON-LD and sitemap noIndex helpers for Strapi-backed sites — React 19 / Next 16",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./sitemap": {
+      "types": "./dist/sitemap.d.ts",
+      "default": "./dist/sitemap.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/psmsun/npm-packages.git",
+    "directory": "seo-utils"
+  },
+  "homepage": "https://github.com/psmsun/npm-packages/tree/main/seo-utils#readme",
+  "bugs": {
+    "url": "https://github.com/psmsun/npm-packages/issues"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "prepublishOnly": "vitest run && tsc"
+  },
+  "peerDependencies": {
+    "react": ">=18"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.17",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "typescript": "^6.0.3",
+    "vitest": "^3.2.4"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "seo",
+    "metadata",
+    "json-ld",
+    "sitemap",
+    "strapi",
+    "nextjs",
+    "react"
+  ],
+  "license": "MIT"
+}
