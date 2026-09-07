@@ -29,17 +29,14 @@ Bind `generateSEOMetadata` once next to the site identity and import it from the
 const { createSeo } = require("@prismetic/seo-utils");
 
 const SITE_URL = "https://expopharmtech.com";
-const SITE_TITLE = "…";
-const SITE_DESCRIPTION = "…";
+const SITE_NAME = "Pharmtech & Ingredients";
 
 module.exports = {
   SITE_URL,
-  SITE_TITLE,
-  SITE_DESCRIPTION,
+  SITE_NAME,
   generateSEOMetadata: createSeo({
     siteUrl: SITE_URL,
-    siteTitle: SITE_TITLE,
-    siteDescription: SITE_DESCRIPTION,
+    siteName: SITE_NAME,
     // locale: "ru_RU",   // Open Graph locale, defaults to "en_US"
   }).generateSEOMetadata,
 };
@@ -54,12 +51,27 @@ export async function generateMetadata() {
 ```
 
 `generateSEOMetadata(seoData, path, pageData)` returns a Next `Metadata` object (title,
-description, keywords, canonical, Open Graph, Twitter, robots). Summaries strip HTML tags
-and the six common entities; a page with no summary of its own falls back to `Excerpt`,
-`ShortText`, `Content` and then the site description; a record with a `Name` (speakers,
-partners) uses `Name — Title` (capped at 60 characters) as its title. A CMS canonical
-that points at the site root is ignored on any non-root path, so a page inheriting the
-homepage's SEO record never declares itself a duplicate of the homepage.
+description, keywords, canonical, Open Graph, Twitter, robots). Nothing is ever inherited
+from the homepage:
+
+| | chain |
+| --- | --- |
+| title | `seo.metaTitle` → `Title` → `Header.Title` → `PageName` → `siteName` |
+| description | `seo.metaDescription` → `Excerpt` → `ShortText` → `Content` → `Header.Content` → *omitted* |
+
+A record with a `Name` (speakers, partners) uses `Name — Title` (capped at 60 characters)
+as its title instead, since there `Title` is the job title. `Header.Title` loses a `//`
+separator ("Industry Insights // Hub" → "Industry Insights Hub") but is otherwise
+untouched — no truncation, no brand suffix. Summaries are trimmed to 160 characters at a
+word boundary and stripped of `<style>`/`<script>` blocks, HTML tags and the six common
+entities. Every source is trimmed before it is tested, so a field saved as a single space
+counts as absent.
+
+**A page with no summary anywhere gets no description at all** — `description`,
+`openGraph.description` and `twitter.description` are omitted rather than filled with a
+site-wide string that says nothing about the page. A CMS canonical that points at the
+site root is ignored on any non-root path, so a page inheriting the homepage's SEO record
+never declares itself a duplicate of the homepage.
 
 ## JSON-LD
 
@@ -150,6 +162,15 @@ a new site means checking both root names and that shape first.
 Known limitation, kept from the original: a CMS failure is logged and swallowed, so the
 build still succeeds but the deploy has no `llms.txt`. Look for
 `[llms.txt] generated → out/llms.txt` in the postbuild log before trusting an export.
+
+## Upgrading to 2.0
+
+`createSeo` no longer takes `siteTitle` or `siteDescription`; it takes `siteName` — the
+event's name, used as the Open Graph site name and as the last-resort page title. Each
+site's `lib/siteConfig.js` swaps its two constants for one `SITE_NAME`, and `app/layout.tsx`
+uses it as the root `title` with no root `description`. Delete the
+`if (!seo) seo = await fetchHomepageSEO()` fallback in front of every `<JsonLd>`: a page
+with no SEO record of its own now renders no JSON-LD rather than the homepage's.
 
 ## Development
 

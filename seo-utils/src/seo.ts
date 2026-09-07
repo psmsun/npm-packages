@@ -9,10 +9,8 @@
 export interface SeoConfig {
   /** Site origin, e.g. "https://expopharmtech.com". A trailing slash is stripped. */
   siteUrl: string;
-  /** Used when a page has neither an SEO record nor a name of its own. */
-  siteTitle: string;
-  /** Used when a page has neither an SEO record nor a summary of its own. */
-  siteDescription: string;
+  /** The event's name. Open Graph site name, and the last-resort page title. */
+  siteName: string;
   /** Open Graph locale. Defaults to "en_US". */
   locale?: string;
 }
@@ -44,12 +42,13 @@ export interface SeoRobots {
 /** Structurally assignable to Next's `Metadata`, so the package needs no `next` import. */
 export interface SeoMetadata {
   title: { absolute: string };
-  description: string;
+  /** Omitted when the page has no summary of its own — never a site-wide filler. */
+  description?: string;
   keywords: string | string[] | null | undefined;
   alternates: { canonical: string };
   openGraph: {
     title: string;
-    description: string;
+    description?: string;
     url: string;
     siteName: string;
     locale: string;
@@ -59,7 +58,7 @@ export interface SeoMetadata {
   twitter: {
     card: "summary_large_image";
     title: string;
-    description: string;
+    description?: string;
     images?: string[];
   };
   robots: SeoRobots;
@@ -83,11 +82,14 @@ const ENTITIES: Record<string, string> = {
 /**
  * Collapse a rich-text summary into something usable as a meta description.
  * CMS Excerpt/ShortText values carry newlines and run to ~350 chars; partner and
- * speaker Content is rich-text HTML, so tags and entities are stripped.
+ * speaker Content is rich-text HTML, so tags and entities are stripped. <style> and
+ * <script> blocks go first, inner text included — a page whose Content embeds a form
+ * would otherwise describe itself with that form's CSS.
  */
 export function summarise(text: unknown, max = 160): string | null {
   if (typeof text !== "string") return null;
   const clean = text
+    .replace(/<(style|script)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, " ")
     .replace(/<[^>]+>/g, " ")
     .replace(/&(?:nbsp|amp|lt|gt|quot|#39);/g, (entity) => ENTITIES[entity])
     .replace(/\s+/g, " ")
@@ -99,12 +101,39 @@ export function summarise(text: unknown, max = 160): string | null {
   return `${(lastSpace > 0 ? cut.slice(0, lastSpace) : cut).trim()}…`;
 }
 
+/**
+ * The first argument that is a usable string. CMS text fields are routinely saved as a
+ * single space, which a plain `||` chain accepts as a value and then summarises to
+ * nothing — so every source is trimmed before it is tested, not merely null-checked.
+ */
+function firstNonBlank(...values: unknown[]): string | null {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value;
+  }
+  return null;
+}
+
+/**
+ * A page Header.Title as a page title. Editors separate the two halves of a heading with
+ * `//` ("Industry Insights // Hub"), which reads as a typo in a browser tab, and the cut
+ * leaves a stray space in front of any punctuation that followed it. A `//` preceded by a
+ * colon is left alone so a URL in a heading does not collapse to "https:".
+ */
+export function cleanHeaderTitle(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const clean = value
+    .replace(/(?<!:)\/\//g, " ")
+    .replace(/\s+/g, " ")
+    .replace(/ ([?!,.;:])/g, "$1")
+    .trim();
+  return clean || null;
+}
+
 export function createSeo(config: SeoConfig): {
   generateSEOMetadata: GenerateSEOMetadata;
 } {
   const baseUrl = config.siteUrl.replace(/\/+$/, "");
-  const defaultTitle = config.siteTitle;
-  const defaultDescription = config.siteDescription;
+  const siteName = config.siteName;
   const locale = config.locale ?? "en_US";
 
   const generateSEOMetadata: GenerateSEOMetadata = (seoData, path, pageData) => {
@@ -117,25 +146,39 @@ export function createSeo(config: SeoConfig): {
       pageData?.Name && pageData?.Title
         ? `${pageData.Name} — ${pageData.Title}`
         : null;
+    // Header.Title is the heading the page shows above the fold — a better title than the
+    // PageName slug behind it, and the only page-specific one the 629 fleet pages with no
+    // SEO record have at all.
     const pageTitle = pageData?.Name
       ? summarise(personTitle || pageData.Name, 60)
-      : pageData?.Title || pageData?.PageName;
+      : firstNonBlank(pageData?.Title) ||
+        cleanHeaderTitle(pageData?.Header?.Title) ||
+        firstNonBlank(pageData?.PageName);
     // Speakers carry no summary field of their own (Details is a contact card), so the
     // name, job title and company stand in rather than the site-wide default.
     const personSummary =
       personTitle && pageData?.Company && pageData.Company !== pageData.Title
         ? `${personTitle}, ${pageData.Company}`
         : personTitle;
+    // Header.Content is the page's own intro paragraph. It comes last because it is the
+    // longest and the least edited; a page with none gets no description at all rather
+    // than the homepage's, which 629 pages of the fleet used to share.
     const pageSummary = summarise(
-      pageData?.Excerpt ||
-        pageData?.ShortText ||
-        pageData?.Content ||
+      firstNonBlank(
+        pageData?.Excerpt,
+        pageData?.ShortText,
+        pageData?.Content,
+        pageData?.Header?.Content,
         personSummary,
+      ),
     );
 
-    const metaTitle: string = seoData?.metaTitle || pageTitle || defaultTitle;
-    const metaDescription: string =
-      seoData?.metaDescription || pageSummary || defaultDescription;
+    const metaTitle: string =
+      firstNonBlank(seoData?.metaTitle) || pageTitle || siteName;
+    // No site-wide fallback: a description that says nothing about the page is worse for
+    // search than none, and Google writes a better one from the page than we can.
+    const metaDescription: string | null =
+      firstNonBlank(seoData?.metaDescription) || pageSummary;
     const keywords = seoData?.keywords;
     const noIndex = seoData?.noIndex ?? false;
 
@@ -179,16 +222,16 @@ export function createSeo(config: SeoConfig): {
       title: {
         absolute: metaTitle,
       },
-      description: metaDescription,
+      ...(metaDescription ? { description: metaDescription } : {}),
       keywords: keywords,
       alternates: {
         canonical: canonical,
       },
       openGraph: {
         title: metaTitle,
-        description: metaDescription,
+        ...(metaDescription ? { description: metaDescription } : {}),
         url: canonical,
-        siteName: defaultTitle,
+        siteName,
         locale,
         type: "website",
         ...(imageUrl
@@ -207,7 +250,7 @@ export function createSeo(config: SeoConfig): {
       twitter: {
         card: "summary_large_image",
         title: metaTitle,
-        description: metaDescription,
+        ...(metaDescription ? { description: metaDescription } : {}),
         ...(imageUrl ? { images: [imageUrl] } : {}),
       },
       robots,

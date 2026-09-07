@@ -1,4 +1,5 @@
 export {
+  cleanHeaderTitle,
   type CmsPageData,
   type CmsSeo,
   createSeo,
