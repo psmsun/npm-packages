@@ -237,15 +237,16 @@ describe("Header fallbacks (v2)", () => {
     expect(m.title.absolute).toBe("Jane Doe — CTO");
     expect(m.description).toBe("Jane Doe — CTO, Acme");
   });
-  it("Header.Content outranks the person summary, as the chain is ordered", () => {
-    // Speaker and partner queries select no Header, so this only bites if one ever does.
+  it("the person summary outranks Header.Content", () => {
+    // Speaker and partner queries select no Header today; if one ever does, the person is
+    // still the better description of their own page than the header above them.
     const m = generateSEOMetadata(null, "speakers/jane", {
       Name: "Jane Doe",
       Title: "CTO",
       Company: "Acme",
       Header: { Content: "All our speakers." },
     });
-    expect(m.description).toBe("All our speakers.");
+    expect(m.description).toBe("Jane Doe — CTO, Acme");
   });
 });
 

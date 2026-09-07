@@ -160,16 +160,17 @@ export function createSeo(config: SeoConfig): {
       personTitle && pageData?.Company && pageData.Company !== pageData.Title
         ? `${personTitle}, ${pageData.Company}`
         : personTitle;
-    // Header.Content is the page's own intro paragraph. It comes last because it is the
-    // longest and the least edited; a page with none gets no description at all rather
-    // than the homepage's, which 629 pages of the fleet used to share.
+    // Header.Content is the page's own intro paragraph, and it comes last: it is the
+    // longest and the least edited, and on a speaker or partner the person themselves
+    // describes the page better than the header above them does. A page with none gets no
+    // description at all rather than the homepage's, which 629 fleet pages used to share.
     const pageSummary = summarise(
       firstNonBlank(
         pageData?.Excerpt,
         pageData?.ShortText,
         pageData?.Content,
-        pageData?.Header?.Content,
         personSummary,
+        pageData?.Header?.Content,
       ),
     );
 
@@ -193,9 +194,9 @@ export function createSeo(config: SeoConfig): {
     cleanPath = cleanPath.replace(/^\/+|\/+$/g, "");
 
     const pathSegment = cleanPath ? `/${cleanPath}` : "";
-    // A page with no SEO record of its own falls back to the homepage's SEO. That must
-    // supply defaults only — never identity. Inheriting the homepage's canonical made the
-    // page declare itself a duplicate of the homepage, which de-indexes it. So a canonical
+    // A canonical is identity, so a page must never inherit one: declaring itself a
+    // duplicate of the homepage de-indexes it. Sites that once filled the whole SEO record
+    // from the homepage left that root canonical behind on real pages, so a canonical
     // pointing at the site root is ignored on any non-root path; deliberate per-page
     // canonicals (used to point one URL at another) still win.
     const cmsCanonical = seoData?.canonicalURL;

@@ -60,7 +60,8 @@ from the homepage:
 | description | `seo.metaDescription` → `Excerpt` → `ShortText` → `Content` → `Header.Content` → *omitted* |
 
 A record with a `Name` (speakers, partners) uses `Name — Title` (capped at 60 characters)
-as its title instead, since there `Title` is the job title. `Header.Title` loses a `//`
+as its title instead, since there `Title` is the job title, and `Name — Title, Company` as
+its description ahead of any `Header.Content`. `Header.Title` loses a `//`
 separator ("Industry Insights // Hub" → "Industry Insights Hub") but is otherwise
 untouched — no truncation, no brand suffix. Summaries are trimmed to 160 characters at a
 word boundary and stripped of `<style>`/`<script>` blocks, HTML tags and the six common
