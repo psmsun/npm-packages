@@ -60,13 +60,15 @@ describe("parseRedirectsApiUrl", () => {
 });
 
 describe("createSitemapNoIndex", () => {
-  it("ships the five default collections in order", () => {
+  it("ships the default collections in order", () => {
     expect(DEFAULT_CONTENT_TYPES).toEqual([
       { uid: "pages", field: "PagePath" },
       { uid: "articles", field: "Slug", prefix: "articles" },
       { uid: "sectors", field: "Slug", prefix: "sectors" },
       { uid: "medias", field: "Slug", prefix: "media-gallery" },
       { uid: "partners", field: "Slug", prefix: "partner" },
+      // Added in 2.1. Sites without the collection answer 404, which is silent.
+      { uid: "peoples", field: "Slug", prefix: "speakers" },
     ]);
   });
 
@@ -79,12 +81,13 @@ describe("createSitemapNoIndex", () => {
         [url("pharmtech-v2-sectors", "Slug")]: { data: [{ Slug: "bar" }] },
         [url("pharmtech-v2-medias", "Slug")]: { data: [{ Slug: "gal" }] },
         [url("pharmtech-v2-partners", "Slug")]: { data: [{ Slug: "acme" }] },
+        [url("pharmtech-v2-peoples", "Slug")]: { data: [{ Slug: "ada" }] },
       },
       calls,
     );
     const { getNoIndexPathSetPromise } = createSitemapNoIndex({ fetch });
     const set = await getNoIndexPathSetPromise(REDIRECTS);
-    expect([...set].sort()).toEqual(["/about", "/articles/foo", "/contact", "/media-gallery/gal", "/partner/acme", "/sectors/bar"]);
+    expect([...set].sort()).toEqual(["/about", "/articles/foo", "/contact", "/media-gallery/gal", "/partner/acme", "/sectors/bar", "/speakers/ada"]);
     expect(calls.sort()).toEqual(
       [
         url("pharmtech-v2-pages", "PagePath"),
@@ -92,6 +95,7 @@ describe("createSitemapNoIndex", () => {
         url("pharmtech-v2-sectors", "Slug"),
         url("pharmtech-v2-medias", "Slug"),
         url("pharmtech-v2-partners", "Slug"),
+        url("pharmtech-v2-peoples", "Slug"),
       ].sort(),
     );
   });
@@ -124,9 +128,9 @@ describe("createSitemapNoIndex", () => {
     const b = api.getNoIndexPathSetPromise(REDIRECTS);
     expect(a).toBe(b);
     await a;
-    expect(calls.length).toBe(5);
+    expect(calls.length).toBe(6);
     await createSitemapNoIndex({ fetch: fakeFetch({}, calls) }).getNoIndexPathSetPromise(REDIRECTS);
-    expect(calls.length).toBe(10);
+    expect(calls.length).toBe(12);
   });
 
   it("accepts per-site content types (Transrussia campaign pages, MUI media-library)", async () => {

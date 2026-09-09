@@ -6,6 +6,33 @@
  * passed in through `createSeo`, so one implementation serves every site.
  */
 
+import { sanitizeSameOriginCanonical } from "./canonical.js";
+import { parseNoIndex } from "./noIndex.js";
+
+export type { NoIndexVerdict } from "./noIndex.js";
+export { parseNoIndex } from "./noIndex.js";
+
+/**
+ * How much to trust a CMS `canonicalURL`.
+ *
+ * - "passthrough" (default, and every 2.x site's behaviour): use the CMS value as given,
+ *   except that a canonical pointing at the site root is ignored on a non-root path.
+ * - "strict-same-origin": additionally require an absolute URL on the same scheme and
+ *   host. Anything rejected falls back to the computed per-path canonical and is logged
+ *   with console.error. Enabling it can change which pages are indexed — audit the CMS.
+ */
+export type CanonicalPolicy = "passthrough" | "strict-same-origin";
+
+/**
+ * How to read `seo.noIndex`.
+ *
+ * - "truthy" (default, and every 2.x site's behaviour): `seo.noIndex ?? false`, read as a
+ *   truthy test. It also treats the *string* `"false"` as noindex and ignores `metaRobots`.
+ * - "strict": an explicit allowlist plus `metaRobots`, and `"noindex, follow"` keeps follow.
+ *   Enabling it can change which pages are indexed — audit the CMS.
+ */
+export type NoIndexPolicy = "truthy" | "strict";
+
 export interface SeoConfig {
   /** Site origin, e.g. "https://expopharmtech.com". A trailing slash is stripped. */
   siteUrl: string;
@@ -13,6 +40,10 @@ export interface SeoConfig {
   siteName: string;
   /** Open Graph locale. Defaults to "en_US". */
   locale?: string;
+  /** Default "passthrough" — 2.0 behaviour. */
+  canonicalPolicy?: CanonicalPolicy;
+  /** Default "truthy" — 2.0 behaviour. */
+  noIndexPolicy?: NoIndexPolicy;
 }
 
 /** The Strapi `seo` component as the sites query it. */
@@ -20,7 +51,8 @@ export interface CmsSeo {
   metaTitle?: string | null;
   metaDescription?: string | null;
   keywords?: string | string[] | null;
-  noIndex?: boolean | null;
+  /** Whatever the CMS stored. `noIndexPolicy` decides how it is read. */
+  noIndex?: unknown;
   canonicalURL?: string | null;
   metaImage?: { url?: string | null } | null;
   [key: string]: unknown;
@@ -135,6 +167,8 @@ export function createSeo(config: SeoConfig): {
   const baseUrl = config.siteUrl.replace(/\/+$/, "");
   const siteName = config.siteName;
   const locale = config.locale ?? "en_US";
+  const canonicalPolicy = config.canonicalPolicy ?? "passthrough";
+  const noIndexPolicy = config.noIndexPolicy ?? "truthy";
 
   const generateSEOMetadata: GenerateSEOMetadata = (seoData, path, pageData) => {
     // A page with no SEO record of its own still has a name — use it rather than the site
@@ -181,7 +215,10 @@ export function createSeo(config: SeoConfig): {
     const metaDescription: string | null =
       firstNonBlank(seoData?.metaDescription) || pageSummary;
     const keywords = seoData?.keywords;
-    const noIndex = seoData?.noIndex ?? false;
+    const verdict =
+      noIndexPolicy === "strict"
+        ? parseNoIndex(seoData)
+        : { noIndex: !!(seoData?.noIndex ?? false), follow: false };
 
     const metaImage = seoData?.metaImage;
     const imageUrl = metaImage?.url
@@ -200,18 +237,29 @@ export function createSeo(config: SeoConfig): {
     // pointing at the site root is ignored on any non-root path; deliberate per-page
     // canonicals (used to point one URL at another) still win.
     const cmsCanonical = seoData?.canonicalURL;
-    const inheritedRootCanonical =
-      !!pathSegment && cmsCanonical?.replace(/\/+$/, "") === baseUrl;
-    const canonical =
-      cmsCanonical && !inheritedRootCanonical
-        ? cmsCanonical
-        : `${baseUrl}${pathSegment}/`;
+    const computedCanonical = `${baseUrl}${pathSegment}/`;
+    let canonical: string;
+    if (canonicalPolicy === "strict-same-origin") {
+      canonical =
+        sanitizeSameOriginCanonical(cmsCanonical, {
+          siteUrl: baseUrl,
+          pathSegment: cleanPath,
+          homes: [baseUrl],
+        }) ?? computedCanonical;
+    } else {
+      const inheritedRootCanonical =
+        !!pathSegment && cmsCanonical?.replace(/\/+$/, "") === baseUrl;
+      canonical =
+        cmsCanonical && !inheritedRootCanonical
+          ? cmsCanonical
+          : computedCanonical;
+    }
 
-    const robots: SeoRobots = noIndex
+    const robots: SeoRobots = verdict.noIndex
       ? {
           index: false,
-          follow: false,
-          googleBot: { index: false, follow: false },
+          follow: verdict.follow,
+          googleBot: { index: false, follow: verdict.follow },
         }
       : {
           index: true,
