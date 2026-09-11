@@ -42,6 +42,9 @@ single-language site is guaranteed the output it had in 2.0.
 The `./sitemap` and `./bilingual/sitemap` entries are deliberately free of React and of
 top-level `await` so `require(esm)` keeps working from a CJS config.
 
+Using this outside the ITE fleet? See [Portability](#portability) for what is generic,
+what assumes Strapi, and what is ITE-specific.
+
 ## Quick start
 
 Bind `generateSEOMetadata` once next to the site identity:
@@ -880,6 +883,98 @@ match exactly the pages that render a noindex meta tag.
 **No TLS override.** The package never sets `NODE_TLS_REJECT_UNAUTHORIZED`. A CMS whose
 certificate chain Node cannot verify needs an explicit, per-site opt-in in that site's own
 config — and only there.
+
+# Portability
+
+**No ITE domain or site name is hardcoded in the shipped code** — they appear only in
+comments and test fixtures. What the package actually couples to is *field names* and
+*URL conventions*, and that differs sharply per entry point.
+
+## Works on any project
+
+Pure functions with no CMS assumptions at all. Import and use them anywhere:
+
+| export | entry |
+| --- | --- |
+| `summarise` | `.` |
+| `cleanHeaderTitle` | `.` |
+| `JsonLd`, `getStructuredDataScriptInnerHtmls` | `.` — generic apart from expecting the field to be named `JSON_LD` |
+| `sanitizeSameOriginCanonical` | `./bilingual` |
+| `normalizeSitemapPath` | `./sitemap`, `./bilingual/sitemap` |
+| `localeAlternateRefs` | `./bilingual/sitemap` |
+| `contentSignalRobotsTxt`, `DEFAULT_CONTENT_SIGNAL` | `./sitemap` |
+
+## Works on any Strapi project
+
+`createSeo` and `createBilingualSeo` read `metaTitle`, `metaDescription`, `keywords`,
+`noIndex`, `canonicalURL` and `metaImage` — the **Strapi SEO plugin's** field names, not
+an ITE invention. Any Strapi site using that plugin fits without modification.
+
+`createLocaleSitemapNoIndex` is the portable sitemap helper: it takes a plain `apiBase`
+and your own uids, and only needs `/api/<uid>?locale=…&populate[seo]` to answer. It works
+against Strapi v4 or v5 via `shape`.
+
+`parseNoIndex` accepts `noIndex`, `NoIndex`, `metaRobots`, `meta_robots`, `robots` and
+`MetaRobots`, so it tolerates most conventions.
+
+## ITE-specific
+
+- **`generateSEOMetadata`'s `pageData` fallback chain is hardcoded**: `Title`,
+  `Header.Title`, `Header.Content`, `PageName`, `Name`, `Company`, `Excerpt`, `ShortText`,
+  `Content`. There is no accessor option, unlike `@prismetic/article-filters`'
+  `ArticleAccessors`. On another CMS these simply never match — see below.
+- **`./sitemap`'s `createSitemapNoIndex` is the one hard blocker.** It requires a
+  `*-redirects` REST URL matching `/api/<slug>-redirects`, and prefixes every collection
+  with the slug it derives from it: `articles` is queried as `<slug>-articles`. That is
+  ITE's multi-tenant naming. Use `./bilingual/sitemap` instead on any other Strapi.
+- **`generateLlmsTxt`** takes configurable GraphQL roots but a fixed query shape:
+  `seo { metaTitle metaDescription }` and `Data { Title LinkTo Links { Text LinkTo } }`.
+
+## Using it on another project today
+
+The hardcoded `pageData` chain **degrades gracefully rather than breaking** — unmatched
+field names are simply absent, and the `seo` component carries the page:
+
+```js
+const { generateSEOMetadata } = createSeo({
+  siteUrl: "https://acme.io",
+  siteName: "Acme",
+});
+
+generateSEOMetadata(
+  { metaTitle: "Pricing", metaDescription: "What it costs." },
+  "pricing",
+  { post_title: "Pricing", post_excerpt: "never read" },   // non-ITE field names
+);
+// title      → "Pricing"
+// description→ "What it costs."
+// canonical  → "https://acme.io/pricing/"
+
+generateSEOMetadata(null, "pricing", { post_title: "Pricing" });
+// title → "Acme"   — falls back to siteName, no crash, nothing undefined
+```
+
+So the recipe for another project is to **shape the first argument yourself** and skip the
+third:
+
+```js
+const toSeo = (page) => ({
+  metaTitle: page.post_title,
+  metaDescription: page.post_excerpt,
+  keywords: page.tags?.join(", "),
+  canonicalURL: page.canonical_url,
+  noIndex: page.noindex,
+  metaImage: page.og_image ? { url: page.og_image } : null,
+});
+
+export async function generateMetadata() {
+  return generateSEOMetadata(toSeo(page), page.slug);
+}
+```
+
+That is a few lines per project and needs no change to this package. Making the mapping a
+built-in `mapSeo` option, and replacing the hardcoded `pageData` chain with accessors, is
+the natural next step if more than one non-ITE project needs it.
 
 # Limits
 
