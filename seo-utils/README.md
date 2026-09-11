@@ -910,9 +910,9 @@ Pure functions with no CMS assumptions at all. Import and use them anywhere:
 `noIndex`, `canonicalURL` and `metaImage` — the **Strapi SEO plugin's** field names, not
 an ITE invention. Any Strapi site using that plugin fits without modification.
 
-`createLocaleSitemapNoIndex` is the portable sitemap helper: it takes a plain `apiBase`
-and your own uids, and only needs `/api/<uid>?locale=…&populate[seo]` to answer. It works
-against Strapi v4 or v5 via `shape`.
+`createLocaleSitemapNoIndex` takes a plain `apiBase` and your own uids and works against
+Strapi v4 or v5 via `shape` — but **only for a site whose URLs carry a locale segment.**
+See the sitemap note below.
 
 `parseNoIndex` accepts `noIndex`, `NoIndex`, `metaRobots`, `meta_robots`, `robots` and
 `MetaRobots`, so it tolerates most conventions.
@@ -923,10 +923,23 @@ against Strapi v4 or v5 via `shape`.
   `Header.Title`, `Header.Content`, `PageName`, `Name`, `Company`, `Excerpt`, `ShortText`,
   `Content`. There is no accessor option, unlike `@prismetic/article-filters`'
   `ArticleAccessors`. On another CMS these simply never match — see below.
-- **`./sitemap`'s `createSitemapNoIndex` is the one hard blocker.** It requires a
-  `*-redirects` REST URL matching `/api/<slug>-redirects`, and prefixes every collection
-  with the slug it derives from it: `articles` is queried as `<slug>-articles`. That is
-  ITE's multi-tenant naming. Use `./bilingual/sitemap` instead on any other Strapi.
+- **Neither sitemap helper serves a monolingual non-ITE site.** `createSitemapNoIndex`
+  requires a `*-redirects` REST URL matching `/api/<slug>-redirects` and prefixes every
+  collection with the slug it derives from it — `articles` is queried as
+  `<slug>-articles`, ITE's multi-tenant naming. `createLocaleSitemapNoIndex` avoids that,
+  but unconditionally prefixes `/<locale>` to every path it emits, so on a site whose URLs
+  have no locale segment the exclusion set never matches:
+
+  ```js
+  createLocaleSitemapNoIndex({ apiBase, shape: "v5", locales: ["en"], … });
+  // set contains "/en/about"; the sitemap emits "/about" → no match, nothing excluded
+  // locales: [""] does not help — it yields the malformed "//about"
+  ```
+
+  **This fails silently**: no error, an empty-looking exclusion set, and noIndex pages
+  ship in the sitemap. Write the `transform` yourself instead — it is ~20 lines against
+  your own CMS, and `normalizeSitemapPath` is exported so both sides of the comparison
+  agree.
 - **`generateLlmsTxt`** takes configurable GraphQL roots but a fixed query shape:
   `seo { metaTitle metaDescription }` and `Data { Title LinkTo Links { Text LinkTo } }`.
 
@@ -984,6 +997,9 @@ the natural next step if more than one non-ITE project needs it.
   postbuild log before trusting an export.
 - **A wrong `shape` on `./bilingual/sitemap` fails silently** apart from its
   `console.error`. Nothing is excluded and noIndex pages ship.
+- **`./bilingual/sitemap` always prefixes `/<locale>`**, so it cannot serve a site whose
+  URLs have no locale segment — and that one fails with no message at all. See
+  [Portability](#ite-specific).
 - **`forLocale` without `available` advertises every locale**, including translations that
   were never authored.
 - **The main entry's default policies are known to be wrong** (`"false"` read as noindex;
