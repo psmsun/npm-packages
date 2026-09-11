@@ -6,6 +6,7 @@ Monorepo for Prismetic's published npm packages. Managed with [npm workspaces](h
 
 | Package | Description |
 | --- | --- |
+| [`@prismetic/article-filters`](./article-filters) | Topic / year / sort filtering for CMS article lists — React 19 / Next 16 |
 | [`@prismetic/form-utils`](./form-utils) | NeverBounce email gating for embedded ActiveCampaign forms — React 19 / Next 16 |
 | [`@prismetic/link-utils`](./link-utils) | CMS href normalisation — bare domains, external targets, static-file prefetch |
 | [`@prismetic/seo-utils`](./seo-utils) | Next.js metadata, JSON-LD and sitemap noIndex helpers for Strapi-backed sites — React 19 / Next 16 |

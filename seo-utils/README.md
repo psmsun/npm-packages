@@ -1,5 +1,9 @@
 # @prismetic/seo-utils
 
+> Built for Prismetic's ITE and Red Sea Strapi-backed Next.js sites. The CMS
+> field names, content-type uids and route shapes below are theirs; the policies
+> and helpers are generic.
+
 Next.js App Router metadata, JSON-LD and next-sitemap helpers for the Strapi-backed ITE
 sites. One implementation replaces the per-repo `lib/seo.js`, `lib/jsonLd.tsx`,
 `lib/sitemapNoIndex.js` and (Mosbuild) `lib/generateLlmsTxt.js`; those files are deleted
@@ -8,31 +12,42 @@ and the repos use the package directly.
 ## Install
 
 ```bash
-pnpm add @prismetic/seo-utils --save-exact   # exact pin, no caret
+npm install @prismetic/seo-utils --save-exact   # exact pin, no caret
 ```
 
 Four entries. The first two are the single-language ITE pair and are unchanged since 2.0;
 the `bilingual` pair was added in 2.1 for sites whose URLs carry a locale segment.
 
-- `@prismetic/seo-utils` — page metadata and JSON-LD (imports React).
-- `@prismetic/seo-utils/sitemap` — Node-only helpers for `next-sitemap.config.js`
-  (noIndex exclusions, robots.txt Content-Signal, llms.txt). Never bundled.
-- `@prismetic/seo-utils/bilingual` — page metadata for localized URLs (`/en/…`, `/ar/…`).
-  No React import.
-- `@prismetic/seo-utils/bilingual/sitemap` — Node-only sitemap helpers for those sites.
+| Entry | For | Imports React | Runs |
+| --- | --- | --- | --- |
+| `@prismetic/seo-utils` | page metadata and JSON-LD | yes | build + request |
+| `@prismetic/seo-utils/sitemap` | `next-sitemap.config.js` — noIndex exclusions, robots.txt Content-Signal, llms.txt | no | Node only, never bundled |
+| `@prismetic/seo-utils/bilingual` | page metadata for localized URLs (`/en/…`, `/ar/…`) | no | build + request |
+| `@prismetic/seo-utils/bilingual/sitemap` | sitemap helpers for those sites | no | Node only |
 
 Nothing in the `bilingual` entries is reachable from `.` or `./sitemap`, which is how a
 single-language site is guaranteed the output it had in 2.0.
 
-The package is ESM. CommonJS files such as `lib/siteConfig.js` and
-`next-sitemap.config.js` load it with a plain `require()` through Node's `require(esm)`
-(Node 20.19+ / 22.12+); older Node versions cannot.
+## Requirements
 
-## Page metadata — `lib/siteConfig.js`
+| | |
+| --- | --- |
+| Module format | **ESM.** CommonJS files such as `lib/siteConfig.js` and `next-sitemap.config.js` load it with a plain `require()` through Node's `require(esm)` |
+| Node | **20.19+ / 22.12+** for that `require(esm)` path; older versions cannot load it from CJS |
+| Peer | `react >=18` — accurate as declared; nothing here uses a React 19-only API |
+| Next.js | not a peer dep and never imported. `SeoMetadata` is *structurally* assignable to Next's `Metadata` |
+| `"use client"` | not needed anywhere — `JsonLd` is a server component and everything else is a plain function |
+| Tested against | React 19 / Next 16 |
 
-Bind `generateSEOMetadata` once next to the site identity and import it from there:
+The `./sitemap` and `./bilingual/sitemap` entries are deliberately free of React and of
+top-level `await` so `require(esm)` keeps working from a CJS config.
+
+## Quick start
+
+Bind `generateSEOMetadata` once next to the site identity:
 
 ```js
+// lib/siteConfig.js
 const { createSeo } = require("@prismetic/seo-utils");
 
 const SITE_URL = "https://expopharmtech.com";
@@ -41,13 +56,12 @@ const SITE_NAME = "Pharmtech & Ingredients";
 module.exports = {
   SITE_URL,
   SITE_NAME,
-  generateSEOMetadata: createSeo({
-    siteUrl: SITE_URL,
-    siteName: SITE_NAME,
-    // locale: "ru_RU",   // Open Graph locale, defaults to "en_US"
-  }).generateSEOMetadata,
+  generateSEOMetadata: createSeo({ siteUrl: SITE_URL, siteName: SITE_NAME })
+    .generateSEOMetadata,
 };
 ```
+
+Then use it in any page:
 
 ```ts
 import { generateSEOMetadata } from "@/lib/siteConfig.js";
@@ -56,6 +70,618 @@ export async function generateMetadata() {
   return generateSEOMetadata(seoData, "about", pageData);
 }
 ```
+
+### Real-world usage
+
+With the strict policies enabled and the Open Graph locale set:
+
+```js
+module.exports = {
+  SITE_URL,
+  SITE_NAME,
+  generateSEOMetadata: createSeo({
+    siteUrl: SITE_URL,
+    siteName: SITE_NAME,
+    locale: "ru_RU",                         // Open Graph locale, defaults to "en_US"
+    canonicalPolicy: "strict-same-origin",   // default "passthrough"
+    noIndexPolicy: "strict",                 // default "truthy"
+  }).generateSEOMetadata,
+};
+```
+
+Both policies default to 2.0 behaviour, so a site that does not pass them is unaffected —
+that is what the 109 original tests and `mainEntryUnchanged.test.ts` pin. See
+[ITE: enabling the strict checks](#ite-enabling-the-strict-checks) before turning them on.
+
+---
+
+# API reference
+
+## Entry `.` — page metadata and JSON-LD
+
+### `createSeo(config)`
+
+```ts
+createSeo(config: SeoConfig): { generateSEOMetadata: GenerateSEOMetadata }
+```
+
+| `config` field | type | default | |
+| --- | --- | --- | --- |
+| `siteUrl` | `string` | — | site origin, e.g. `"https://expopharmtech.com"`. A trailing slash is stripped |
+| `siteName` | `string` | — | the event's name. Open Graph site name, and last-resort page title |
+| `locale` | `string` | `"en_US"` | Open Graph locale |
+| `canonicalPolicy` | `"passthrough" \| "strict-same-origin"` | `"passthrough"` | how far to trust a CMS `canonicalURL` |
+| `noIndexPolicy` | `"truthy" \| "strict"` | `"truthy"` | how to read `seo.noIndex` |
+
+Returns an object with one member. Binding it once per site is the intended use; the
+returned function closes over the config.
+
+### `generateSEOMetadata(seoData, path?, pageData?)`
+
+```ts
+type GenerateSEOMetadata = (
+  seoData: CmsSeo | null | undefined,
+  path?: string | null,
+  pageData?: CmsPageData,
+) => SeoMetadata;
+```
+
+| param | type | |
+| --- | --- | --- |
+| `seoData` | `CmsSeo \| null \| undefined` | the page's Strapi `seo` component |
+| `path` | `string \| null` | the page's path below the origin, e.g. `"about"` |
+| `pageData` | `CmsPageData` | the page record itself, for the title/description fallback chains |
+
+Returns a `SeoMetadata` object — title, description, keywords, canonical, Open Graph,
+Twitter and robots. See [Page metadata](#page-metadata) for the fallback chains and the
+rules that govern each field.
+
+### `<JsonLd />`
+
+```tsx
+<JsonLd seo={seoData} />
+```
+
+| prop | type | |
+| --- | --- | --- |
+| `seo` | `CmsSeoJsonLd` | anything with a `JSON_LD` field; `null`/`undefined` renders nothing |
+
+Renders each object in the CMS `seo.JSON_LD` field (a JSON string, an object or an
+array) as an `application/ld+json` script, and nothing when the field is empty or
+invalid.
+
+A plain `<script>` tag, not `next/script`, so the App Router can hoist it server-side.
+`<` is escaped to `<` in the payload so a string value can never close the script
+tag early.
+
+### `getStructuredDataScriptInnerHtmls(jsonLdField)`
+
+```ts
+getStructuredDataScriptInnerHtmls(jsonLdField: unknown): string[]
+```
+
+The escaped JSON strings `JsonLd` would render, for custom rendering. Never throws:
+
+| input | result |
+| --- | --- |
+| a JSON string (BOM and whitespace tolerated) | parsed, then treated as below |
+| an array | every non-null object element |
+| an object | one element |
+| a `Date`, a primitive, invalid JSON, `null` | `[]` |
+
+### `summarise(text, max?)`
+
+```ts
+summarise(text: unknown, max = 160): string | null
+```
+
+Collapses a rich-text summary into something usable as a meta description. Returns `null`
+for a non-string or a value that cleans to nothing.
+
+In order: `<style>` and `<script>` blocks are removed **including their inner text**, then
+all tags, then the six common entities (`&nbsp; &amp; &lt; &gt; &quot; &#39;`), then
+whitespace is collapsed and trimmed. If the result is longer than `max` it is cut at the
+last space and given an ellipsis.
+
+```ts
+summarise("<p>Hello&nbsp;world</p>");  // "Hello world"
+summarise("   ");                      // null
+summarise(42);                         // null
+```
+
+The `<style>`/`<script>` rule matters: a page whose `Content` embeds a form would
+otherwise describe itself with that form's CSS.
+
+### `cleanHeaderTitle(value)`
+
+```ts
+cleanHeaderTitle(value: unknown): string | null
+```
+
+Removes a `//` separator from a page heading, without touching `://` in a URL, then
+collapses whitespace and tidies space before punctuation. Returns `null` for a non-string
+or an empty result.
+
+```ts
+cleanHeaderTitle("Industry Insights // Hub");  // "Industry Insights Hub"
+```
+
+No truncation and no brand suffix — `Header.Title` is used as the editor wrote it.
+
+### Types
+
+```ts
+interface SeoConfig {
+  siteUrl: string;
+  siteName: string;
+  locale?: string;
+  canonicalPolicy?: "passthrough" | "strict-same-origin";
+  noIndexPolicy?: "truthy" | "strict";
+}
+
+/** The Strapi `seo` component as the sites query it. */
+interface CmsSeo {
+  metaTitle?: string | null;
+  metaDescription?: string | null;
+  keywords?: string | string[] | null;
+  noIndex?: unknown;              // noIndexPolicy decides how it is read
+  canonicalURL?: string | null;
+  metaImage?: { url?: string | null } | null;
+  [key: string]: unknown;
+}
+
+/** The page record. Shapes differ per content type, so this stays loose on purpose. */
+type CmsPageData = Record<string, any> | null | undefined;
+
+/** Structurally assignable to Next's `Metadata`. */
+interface SeoMetadata {
+  title: { absolute: string };
+  description?: string;           // omitted when the page has no summary of its own
+  keywords: string | string[] | null | undefined;
+  alternates: { canonical: string };
+  openGraph: {
+    title: string;
+    description?: string;
+    url: string;
+    siteName: string;
+    locale: string;
+    type: "website";
+    images?: Array<{ url: string; width: number; height: number; alt: string }>;
+  };
+  twitter: {
+    card: "summary_large_image";
+    title: string;
+    description?: string;
+    images?: string[];
+  };
+  robots: { index: boolean; follow: boolean; googleBot: { index: boolean; follow: boolean } };
+}
+```
+
+Also exported: `GenerateSEOMetadata`, `CmsSeoJsonLd`.
+
+**Not exported from this entry**, though they exist in the source: `CanonicalPolicy`,
+`NoIndexPolicy`, `SeoRobots`, `parseNoIndex` and `NoIndexVerdict`. Pass the policy values
+as string literals; `parseNoIndex` is reachable from the two `bilingual` entries.
+
+---
+
+## Entry `./sitemap` — next-sitemap helpers
+
+Node-only. Never bundled.
+
+### `createSitemapNoIndex(options?)`
+
+```ts
+createSitemapNoIndex(options?: SitemapNoIndexOptions): SitemapNoIndex
+```
+
+| option | type | default | |
+| --- | --- | --- | --- |
+| `contentTypes` | `readonly SitemapContentType[]` | `DEFAULT_CONTENT_TYPES` | collections to check |
+| `fetch` | `FetchLike` | global `fetch` | injectable for tests |
+
+Returns:
+
+```ts
+interface SitemapNoIndex {
+  normalizeSitemapPath: (p: unknown) => string;
+  /** Cached per redirects URL, so the transform hook can call it for every path. */
+  getNoIndexPathSetPromise(redirectFetchUrl: string): Promise<Set<string>>;
+}
+```
+
+```js
+const {
+  contentSignalRobotsTxt,
+  createSitemapNoIndex,
+} = require("@prismetic/seo-utils/sitemap");
+const { normalizeSitemapPath, getNoIndexPathSetPromise } =
+  createSitemapNoIndex();
+```
+
+`getNoIndexPathSetPromise(redirectsUrl)` resolves to the set of paths whose Strapi SEO
+record has `noIndex: true`, derived from the site's `*-redirects` REST URL and cached per
+URL. The default checks `pages`, `articles`, `sectors`, `medias` (under `/media-gallery/`)
+and `partners`. Sites with other routes pass their own list:
+
+```js
+const {
+  DEFAULT_CONTENT_TYPES,
+  createSitemapNoIndex,
+} = require("@prismetic/seo-utils/sitemap");
+
+const { normalizeSitemapPath, getNoIndexPathSetPromise } =
+  createSitemapNoIndex({
+    contentTypes: [
+      ...DEFAULT_CONTENT_TYPES,
+      { uid: "campaign-pages", field: "PagePath", prefix: "lp" },
+    ],
+  });
+```
+
+Filtering happens in Strapi with `filters[seo][noIndex][$eq]=true` and a page size of 500.
+
+### `DEFAULT_CONTENT_TYPES`
+
+```ts
+const DEFAULT_CONTENT_TYPES: readonly SitemapContentType[] = [
+  { uid: "pages",    field: "PagePath" },
+  { uid: "articles", field: "Slug", prefix: "articles" },
+  { uid: "sectors",  field: "Slug", prefix: "sectors" },
+  { uid: "medias",   field: "Slug", prefix: "media-gallery" },
+  { uid: "partners", field: "Slug", prefix: "partner" },
+  { uid: "peoples",  field: "Slug", prefix: "speakers" },
+];
+```
+
+`uid` is the collection uid *without* the site's slug prefix — `"articles"` is queried as
+`<site>-articles`.
+
+### `normalizeSitemapPath(p)`
+
+```ts
+normalizeSitemapPath(p: unknown): string
+```
+
+The canonical form used as the set key: stringified, trimmed, trailing slashes stripped,
+a leading slash added. `null`, `""` and `"/"` all become `"/"`.
+
+```js
+normalizeSitemapPath("about/");   // "/about"
+normalizeSitemapPath("/about");   // "/about"
+normalizeSitemapPath(null);       // "/"
+```
+
+Both sides of the comparison must go through it, which is why the factory hands it back
+next to the set.
+
+### `parseRedirectsApiUrl(redirectFetchUrl)`
+
+```ts
+parseRedirectsApiUrl(url: unknown): { apiBase: string; slugPrefix: string } | null
+```
+
+Derives the REST base and the site's slug prefix from its `*-redirects` endpoint URL,
+matching `^(https?://host)/api/(<slug>)-redirects`. Returns `null` when it does not match.
+
+### `contentSignalRobotsTxt(signal?)`
+
+```ts
+contentSignalRobotsTxt(signal?: string): TransformRobotsTxt
+```
+
+| param | default |
+| --- | --- |
+| `signal` | `DEFAULT_CONTENT_SIGNAL` = `"search=yes, ai-input=yes, ai-train=no"` |
+
+Returns a next-sitemap `transformRobotsTxt` hook:
+
+```js
+module.exports = {
+  generateRobotsTxt: true,
+  robotsTxtOptions: {
+    transformRobotsTxt: contentSignalRobotsTxt(),
+  },
+};
+```
+
+Inserts `Content-Signal: <signal>` directly under the `User-agent: *` group
+(contentsignals.org: stay in search and AI-assistant answers, let assistants read pages to
+answer users, withhold bulk model training). A robots.txt without a `User-agent: *` group
+is returned unchanged.
+
+### `generateLlmsTxt(options)`
+
+```ts
+generateLlmsTxt(options: LlmsTxtOptions): Promise<void>
+```
+
+| option | type | |
+| --- | --- | --- |
+| `siteUrl` | `string` | site origin without a trailing slash |
+| `outDir` | `string` | export directory the file is written into, e.g. `"out"` |
+| `strapiGraphqlUrl` | `string` | GraphQL endpoint |
+| `homepageType` | `string` | GraphQL root of the homepage single type, e.g. `"mosBuildHomepage"` |
+| `navBarType` | `string` | GraphQL root of the navbar single type, e.g. `"mosBuildNavBar"` |
+| `fetch` | `PostFetchLike` | defaults to the global fetch |
+
+Called as a side effect inside next-sitemap's `additionalPaths` hook:
+
+```js
+const { generateLlmsTxt } = require("@prismetic/seo-utils/sitemap");
+
+module.exports = {
+  additionalPaths: async (config) => {
+    await generateLlmsTxt({
+      siteUrl: config.siteUrl,
+      outDir: config.outDir ?? "out",
+      strapiGraphqlUrl: "https://ite-cms.prismetic.com/graphql",
+      homepageType: "mosBuildHomepage",
+      navBarType: "mosBuildNavBar",
+    });
+    return [];
+  },
+};
+```
+
+Writes `<outDir>/llms.txt` (llmstxt.org) from the homepage SEO title and description and
+the navbar: every top-level item with a link, every dropdown as a heading with its links
+beneath it. The site's homepage single type must expose `seo { metaTitle metaDescription }`
+and its navbar single type `Data { Title LinkTo Links { Text LinkTo } }`; enabling it on
+a new site means checking both root names and that shape first.
+
+**Never throws.** See Limits.
+
+### Types
+
+```ts
+interface SitemapContentType {
+  uid: string;              // collection uid without the site's slug prefix
+  field: string;            // "PagePath" for page-like types, "Slug" otherwise
+  prefix?: string | null;   // URL segment the slug lives under; omit if field is a path
+}
+
+type FetchLike = (url: string) => Promise<{
+  ok: boolean;
+  json(): Promise<unknown>;
+  status?: number;          // absent ⇒ the failure is not classified
+  text?(): Promise<string>; // preferred over json() when reading an error body
+}>;
+
+type TransformRobotsTxt = (config: unknown, robotsTxt: string) => Promise<string>;
+```
+
+Also exported: `SitemapNoIndexOptions`, `SitemapNoIndex`, `LlmsTxtOptions`,
+`PostFetchLike`, `DEFAULT_CONTENT_SIGNAL`.
+
+---
+
+## Entry `./bilingual` — metadata for localized URLs
+
+### `createBilingualSeo(config)`
+
+```ts
+createBilingualSeo(config: BilingualSeoConfig): BilingualSeo
+```
+
+| `config` field | type | default | |
+| --- | --- | --- | --- |
+| `siteUrl` | `string` | — | site origin; trailing slash stripped |
+| `siteName` | `string` | — | last-resort title, *behind* the per-locale default |
+| `locales` | `BilingualLocales` | — | required; this entry exists for localized URLs |
+| `defaults` | `Record<string, BilingualLocaleDefaults>` | `{}` | per-locale last-resort title/description |
+| `inherit` | `readonly string[]` | `[]` | fields `resolvePageSeo` may copy from the homepage |
+| `loadHomepageSeo` | `(locale?) => Promise<unknown> \| unknown` | — | required for `inherit` to do anything |
+| `hiddenBuildEnv` | `readonly HiddenBuildEnvRule[]` | `[]` | env rules that force the whole build noindex |
+
+Returns `{ forLocale(locale, options?) }`.
+
+### `seo.forLocale(locale, options?)`
+
+```ts
+forLocale(locale: string | undefined, options?: { available?: readonly string[] }):
+  { generateSEOMetadata: BilingualGenerateSEOMetadata; resolvePageSeo: BilingualResolvePageSeo }
+```
+
+`available` narrows the hreflang set to the locales a page was actually translated into.
+Omit it and every locale is advertised, which is what the fleet does today — and why one
+site currently points an `hreflang="ar"` at a page that does not exist.
+
+A locale that is not in `locales.all` is **clamped to `locales.default` and logged**, never
+thrown: `generateMetadata` failing takes the whole build with it.
+
+### `generateSEOMetadata(seoData, path?)` — bilingual
+
+```ts
+type BilingualGenerateSEOMetadata = (
+  seoData: BilingualCmsSeo | null | undefined,
+  path?: string | null,
+) => BilingualSeoMetadata;
+```
+
+Takes **two arguments**. There is no `pageData` fallback chain here — the sites using this
+entry always have an SEO record or a per-locale default, so the main entry's Title /
+Header.Title / PageName ladder would be code no call site reaches. A third argument is
+ignored.
+
+A path may be passed with or without its locale prefix — `"dining"`, `"/ar/dining/"` and
+`"en/dining"` all resolve to the same page.
+
+### `resolvePageSeo(pageSeo)`
+
+```ts
+type BilingualResolvePageSeo = (pageSeo: unknown) => Promise<Record<string, unknown> | undefined>;
+```
+
+Returns a page's own `seo` untouched, and otherwise copies only the fields listed in
+`inherit` from `loadHomepageSeo(locale)`. See [`inherit`](#inherit--what-a-page-may-take-from-the-homepage).
+
+### `parseNoIndex(seo)`
+
+```ts
+parseNoIndex(seo: unknown): { noIndex: boolean; follow: boolean }
+```
+
+Also exported from `./bilingual/sitemap`, and shared on purpose: the sitemap must exclude
+exactly the pages that render `<meta name="robots" content="noindex">`.
+
+| `seo.noIndex` | verdict |
+| --- | --- |
+| `true`, `1`, or the strings `"true"`/`"1"`/`"yes"` (any case, trimmed) | `{ noIndex: true, follow: false }` |
+| any other non-empty string (`"false"`, `"no"`, `"0"`) | indexed — an explicit negative is an answer, and does **not** fall through to `metaRobots` |
+| absent, `null`, `false` | falls through to `metaRobots` / `meta_robots` / `robots` / `MetaRobots` |
+| `metaRobots` containing `noindex` | `{ noIndex: true, follow: !/nofollow/ }` |
+| anything else | `{ noIndex: false, follow: true }` |
+
+`seo.NoIndex === true` is accepted as well as `seo.noIndex`.
+
+### `sanitizeSameOriginCanonical(raw, options)`
+
+```ts
+sanitizeSameOriginCanonical(raw: unknown, options: SameOriginCanonicalOptions): string | null
+```
+
+| option | type | default | |
+| --- | --- | --- | --- |
+| `siteUrl` | `string` | — | site origin, trailing slashes already stripped |
+| `pathSegment` | `string` | — | the page's path below any locale segment; `""` on a home page |
+| `homes` | `readonly string[]` | — | URLs a sub-path must not claim; ignored when `pathSegment` is empty |
+| `onReject` | `(message: string) => void` | `console.error` | where rejections go |
+
+Returns the accepted canonical, or `null` so the caller falls back to the computed
+per-path one. Accepts only an absolute URL on the same scheme and host that is not a home
+page claimed by a sub-path.
+
+### Types
+
+```ts
+interface BilingualLocales {
+  all: readonly string[];              // hreflang order, e.g. ["en", "ar"]
+  default: string;                     // x-default, and the clamp target
+  ogLocale?: Record<string, string>;   // { en: "en_US", ar: "ar_SA" }
+}
+
+interface BilingualLocaleDefaults { title?: string; description?: string }
+
+interface HiddenBuildEnvRule { name: string; equals: string }
+
+interface BilingualSeoMetadata {
+  title: { absolute: string };
+  description?: string;
+  keywords?: string | string[];        // the key is omitted when the CMS value is empty
+  alternates: { canonical: string; languages: Record<string, string> };
+  openGraph: { /* …as SeoMetadata, plus: */ alternateLocale?: string[] };
+  twitter: { card: "summary_large_image"; title: string; description?: string; images?: string[] };
+  robots: { index: boolean; follow: boolean; googleBot: { index: boolean; follow: boolean } };
+}
+```
+
+`BilingualCmsSeo` matches `CmsSeo` except that `metaImage` is `unknown`: Strapi v5 is flat
+(`{ url }`), v4 wraps it (`{ data: { attributes: { url } } }`), and both are resolved.
+
+Also exported: `BilingualSeoConfig`, `BilingualSeo`, `BoundBilingualSeo`,
+`ForLocaleOptions`, `BilingualSeoRobots`, `NoIndexVerdict`, `SameOriginCanonicalOptions`.
+
+Deliberately **not** the main entry's `SeoMetadata`: `keywords` is omitted here rather
+than always emitted, and `alternates.languages` / `openGraph.alternateLocale` do not exist
+there.
+
+---
+
+## Entry `./bilingual/sitemap`
+
+### `createLocaleSitemapNoIndex(options)`
+
+```ts
+createLocaleSitemapNoIndex(options: LocaleSitemapNoIndexOptions): LocaleSitemapNoIndex
+```
+
+| option | type | default | |
+| --- | --- | --- | --- |
+| `apiBase` | `string` | — | Strapi origin |
+| `shape` | `"v4" \| "v5"` | — | response shape of that box. **Not cosmetic** — see below |
+| `locales` | `readonly string[]` | `["en"]` | locale segments to walk |
+| `singleTypes` | `readonly SitemapSingleType[]` | `[]` | `{ uid, segments }` |
+| `collections` | `readonly SitemapCollection[]` | `[]` | `{ uid, field, prefix? }` |
+| `extraPathsEnv` | `string` | — | env var of extra comma-separated paths to exclude |
+| `fetch` | `FetchLike` | global `fetch` | injectable for tests |
+
+Returns `{ normalizeSitemapPath, getNoIndexPathSetPromise() }` — note
+`getNoIndexPathSetPromise` takes **no argument** here (the redirects-URL version takes the
+redirects URL) and caches on the configured base.
+
+### `localeAlternateRefs(siteUrl, path, locales, options?)`
+
+```ts
+localeAlternateRefs(
+  siteUrl: string,
+  path: string,
+  locales: readonly string[],
+  options?: { xDefault?: string; existsIn?: (locale: string, restPath: string) => boolean },
+): AlternateRef[]
+```
+
+| param | default | |
+| --- | --- | --- |
+| `xDefault` | `locales[0]` | locale used for x-default |
+| `existsIn` | every locale exists | pass it to stop advertising a translation that was never authored |
+
+Returns `{ href, hreflang, hrefIsAbsolute: true }[]` for next-sitemap's `transform` hook.
+Every href gets a trailing slash — with `trailingSlash: true` an href without one is not
+the page's canonical and is not in the sitemap's own `<loc>` set, which is the
+non-reciprocity condition that makes Google discard the cluster.
+
+```js
+const {
+  createLocaleSitemapNoIndex,
+  localeAlternateRefs,
+} = require("@prismetic/seo-utils/bilingual/sitemap");
+
+const { normalizeSitemapPath, getNoIndexPathSetPromise } = createLocaleSitemapNoIndex({
+  apiBase: "https://prod-shebara-cms.prismetic.com",
+  shape: "v4",                       // v4: rows wrapped in `attributes`. v5: flat rows.
+  locales: ["en", "ar"],
+  singleTypes: [
+    { uid: "homepage", segments: [] },
+    { uid: "dining", segments: ["dining"] },
+  ],
+  collections: [{ uid: "campaign-pages", field: "Path" }],
+  extraPathsEnv: "SITEMAP_NOINDEX_PATHS",   // comma-separated, e.g. "/en/internal,/ar/internal"
+});
+
+module.exports = {
+  siteUrl: SITE_URL,
+  transform: async (config, path) => {
+    if ((await getNoIndexPathSetPromise()).has(normalizeSitemapPath(path))) return null;
+    return {
+      loc: path,
+      changefreq: config.changefreq,
+      priority: config.priority,
+      alternateRefs: localeAlternateRefs(config.siteUrl, path, ["en", "ar"]),
+    };
+  },
+};
+```
+
+### Types
+
+```ts
+type CmsShape = "v4" | "v5";
+interface SitemapSingleType { uid: string; segments: string[] }
+interface SitemapCollection { uid: string; field: string; prefix?: string | null }
+interface AlternateRef { href: string; hreflang: string; hrefIsAbsolute: true }
+```
+
+Also exported: `LocaleSitemapNoIndexOptions`, `LocaleSitemapNoIndex`,
+`LocaleAlternateOptions`, `normalizeSitemapPath`, `FetchLike`, `parseNoIndex`,
+`NoIndexVerdict`.
+
+---
+
+# Behaviour
+
+## Page metadata
 
 `generateSEOMetadata(seoData, path, pageData)` returns a Next `Metadata` object (title,
 description, keywords, canonical, Open Graph, Twitter, robots). Nothing is ever inherited
@@ -86,19 +712,6 @@ never declares itself a duplicate of the homepage.
 Two opt-in options on `createSeo`. Both default to 2.0 behaviour, so a site that does not
 pass them is unaffected — that is what the 109 original tests and
 `mainEntryUnchanged.test.ts` pin.
-
-```js
-module.exports = {
-  SITE_URL,
-  SITE_NAME,
-  generateSEOMetadata: createSeo({
-    siteUrl: SITE_URL,
-    siteName: SITE_NAME,
-    canonicalPolicy: "strict-same-origin",   // default "passthrough"
-    noIndexPolicy: "strict",                 // default "truthy"
-  }).generateSEOMetadata,
-};
-```
 
 ### `canonicalPolicy: "strict-same-origin"`
 
@@ -136,9 +749,9 @@ Enabling either option changes which pages are indexed, so run the CMS audit fir
 turn them on with the specific list of pages the audit says they repair. The audit output
 is the record of what changed and why; do not enable these blind.
 
-### Sitemap fetch failures
+## Sitemap fetch failures
 
-`createSitemapNoIndex` now classifies a failed collection query instead of swallowing every
+`createSitemapNoIndex` classifies a failed collection query instead of swallowing every
 non-OK response:
 
 | response | behaviour |
@@ -155,7 +768,7 @@ rather than `Slug` used to contribute nothing to the exclusion set and say nothi
 it. `peoples` (speakers, under `/speakers/`) joined `DEFAULT_CONTENT_TYPES` in 2.1; sites
 without that collection answer 404 and stay silent.
 
-## Bilingual sites — `@prismetic/seo-utils/bilingual`
+## Bilingual sites
 
 A site whose URLs carry a locale segment (`/en/dining/`, `/ar/dining/`) uses its own entry
 point. `createSeo` is untouched by everything in this section.
@@ -202,24 +815,9 @@ export async function generateMetadata({ params }) {
 }
 ```
 
-`generateSEOMetadata(seoData, path)` takes **two arguments**. There is no `pageData`
-fallback chain here — the sites using this entry always have an SEO record or a per-locale
-default, so the main entry's Title / Header.Title / PageName ladder would be code no call
-site reaches. A third argument is ignored.
-
 Each page gets its locale segment in the canonical, `alternates.languages` (one entry per
 locale plus `x-default`), `openGraph.alternateLocale`, the per-locale default title and
-description, and an omitted `keywords` key when the CMS value is empty. A path may be
-passed with or without its locale prefix — `"dining"`, `"/ar/dining/"` and `"en/dining"`
-all resolve to the same page.
-
-A locale that is not in `locales.all` is **clamped to `locales.default` and logged**, never
-thrown: `generateMetadata` failing takes the whole build with it.
-
-`forLocale(locale, { available })` narrows the hreflang set to the locales a page was
-actually translated into. Omit it and every locale is advertised, which is what the fleet
-does today — and why one site currently points an `hreflang="ar"` at a page that does not
-exist.
+description, and an omitted `keywords` key when the CMS value is empty.
 
 ### This entry is always strict
 
@@ -270,89 +868,7 @@ Default `[]`, so no env var is read at all. Rules are looked up dynamically, whi
 Next's build-time inlining of `process.env.FOO` does not apply — fine for `generateMetadata`,
 which runs in Node during the build, but a rule here is invisible to client bundles.
 
-## JSON-LD
-
-```tsx
-import { JsonLd } from "@prismetic/seo-utils";
-
-<JsonLd seo={seoData} />;
-```
-
-Renders each object in the CMS `seo.JSON_LD` field (a JSON string, an object or an
-array) as an `application/ld+json` script, and nothing when the field is empty or
-invalid. `getStructuredDataScriptInnerHtmls` and the `CmsSeoJsonLd` type are exported for
-custom rendering.
-
-## Sitemap noIndex — `next-sitemap.config.js`
-
-```js
-const {
-  contentSignalRobotsTxt,
-  createSitemapNoIndex,
-} = require("@prismetic/seo-utils/sitemap");
-const { normalizeSitemapPath, getNoIndexPathSetPromise } =
-  createSitemapNoIndex();
-```
-
-`getNoIndexPathSetPromise(redirectsUrl)` resolves to the set of paths whose Strapi SEO
-record has `noIndex: true`, derived from the site's `*-redirects` REST URL and cached per
-URL. The default checks `pages`, `articles`, `sectors`, `medias` (under `/media-gallery/`)
-and `partners`. Sites with other routes pass their own list:
-
-```js
-const {
-  DEFAULT_CONTENT_TYPES,
-  createSitemapNoIndex,
-} = require("@prismetic/seo-utils/sitemap");
-
-const { normalizeSitemapPath, getNoIndexPathSetPromise } =
-  createSitemapNoIndex({
-    contentTypes: [
-      ...DEFAULT_CONTENT_TYPES,
-      { uid: "campaign-pages", field: "PagePath", prefix: "lp" },
-    ],
-  });
-```
-
-## Bilingual sitemap — `@prismetic/seo-utils/bilingual/sitemap`
-
-Sites that address Strapi directly and whose routes are localized use this entry instead.
-`createSitemapNoIndex` above is untouched.
-
-```js
-const {
-  createLocaleSitemapNoIndex,
-  localeAlternateRefs,
-} = require("@prismetic/seo-utils/bilingual/sitemap");
-
-const { normalizeSitemapPath, getNoIndexPathSetPromise } = createLocaleSitemapNoIndex({
-  apiBase: "https://prod-shebara-cms.prismetic.com",
-  shape: "v4",                       // v4: rows wrapped in `attributes`. v5: flat rows.
-  locales: ["en", "ar"],
-  singleTypes: [
-    { uid: "homepage", segments: [] },
-    { uid: "dining", segments: ["dining"] },
-  ],
-  collections: [{ uid: "campaign-pages", field: "Path" }],
-  extraPathsEnv: "SITEMAP_NOINDEX_PATHS",   // comma-separated, e.g. "/en/internal,/ar/internal"
-});
-
-module.exports = {
-  siteUrl: SITE_URL,
-  transform: async (config, path) => {
-    if ((await getNoIndexPathSetPromise()).has(normalizeSitemapPath(path))) return null;
-    return {
-      loc: path,
-      changefreq: config.changefreq,
-      priority: config.priority,
-      alternateRefs: localeAlternateRefs(config.siteUrl, path, ["en", "ar"]),
-    };
-  },
-};
-```
-
-`getNoIndexPathSetPromise()` takes **no argument** here (the redirects-URL version takes the
-redirects URL) and caches on the configured base.
+### Why the bilingual sitemap filters client-side
 
 `shape` is not cosmetic: a wrong value makes every `seo` read `undefined`, so nothing is
 ever excluded and the sitemap ships noIndex pages. The mismatch is detected and logged with
@@ -361,63 +877,29 @@ export. This entry filters client-side, where `./sitemap` filters in Strapi with
 `$eq: true`, because its noIndex rule is broader than that filter and the exclusion set must
 match exactly the pages that render a noindex meta tag.
 
-`localeAlternateRefs(siteUrl, path, locales, { xDefault, existsIn })` builds the hreflang
-`alternateRefs` for one entry, every href with a trailing slash — with `trailingSlash: true`
-an href without one is not the page's canonical and is not in the sitemap's own `<loc>` set,
-which is the non-reciprocity condition that makes Google discard the cluster. Pass
-`existsIn(locale, restPath)` to stop advertising a translation that was never authored.
-
 **No TLS override.** The package never sets `NODE_TLS_REJECT_UNAUTHORIZED`. A CMS whose
 certificate chain Node cannot verify needs an explicit, per-site opt-in in that site's own
 config — and only there.
 
-## robots.txt Content-Signal
+# Limits
 
-```js
-module.exports = {
-  generateRobotsTxt: true,
-  robotsTxtOptions: {
-    transformRobotsTxt: contentSignalRobotsTxt(),
-  },
-};
-```
+- **A CMS failure in `generateLlmsTxt` is logged and swallowed**, so the build still
+  succeeds but the deploy has no `llms.txt`. Kept from the original on purpose, so the
+  sitemap step never fails a build. Look for `[llms.txt] generated → out/llms.txt` in the
+  postbuild log before trusting an export.
+- **A wrong `shape` on `./bilingual/sitemap` fails silently** apart from its
+  `console.error`. Nothing is excluded and noIndex pages ship.
+- **`forLocale` without `available` advertises every locale**, including translations that
+  were never authored.
+- **The main entry's default policies are known to be wrong** (`"false"` read as noindex;
+  `metaRobots` ignored) and stay default because changing them changes which pages are
+  indexed. They are a per-site audit decision.
+- **`CanonicalPolicy`, `NoIndexPolicy`, `SeoRobots` and `parseNoIndex` are not exported
+  from `.`** even though they exist in the source. Pass policies as string literals.
+- **Requires Node 20.19+ / 22.12+** when loaded from a CommonJS config.
+- **An empty `{}` SEO component counts as a page having its own**, so it inherits nothing.
 
-Inserts `Content-Signal: search=yes, ai-input=yes, ai-train=no` directly under the
-`User-agent: *` group (contentsignals.org: stay in search and AI-assistant answers, let
-assistants read pages to answer users, withhold bulk model training). Pass a string to
-declare a different signal. A robots.txt without a `User-agent: *` group is returned
-unchanged.
-
-## llms.txt
-
-```js
-const { generateLlmsTxt } = require("@prismetic/seo-utils/sitemap");
-
-module.exports = {
-  additionalPaths: async (config) => {
-    await generateLlmsTxt({
-      siteUrl: config.siteUrl,
-      outDir: config.outDir ?? "out",
-      strapiGraphqlUrl: "https://ite-cms.prismetic.com/graphql",
-      homepageType: "mosBuildHomepage",
-      navBarType: "mosBuildNavBar",
-    });
-    return [];
-  },
-};
-```
-
-Writes `<outDir>/llms.txt` (llmstxt.org) from the homepage SEO title and description and
-the navbar: every top-level item with a link, every dropdown as a heading with its links
-beneath it. The site's homepage single type must expose `seo { metaTitle metaDescription }`
-and its navbar single type `Data { Title LinkTo Links { Text LinkTo } }`; enabling it on
-a new site means checking both root names and that shape first.
-
-Known limitation, kept from the original: a CMS failure is logged and swallowed, so the
-build still succeeds but the deploy has no `llms.txt`. Look for
-`[llms.txt] generated → out/llms.txt` in the postbuild log before trusting an export.
-
-## Upgrading to 2.1
+# Upgrading to 2.1
 
 **Nothing to do.** 2.1 adds two new entry points and changes nothing that an existing site
 imports: `src/seo.ts`, `src/sitemap.ts` and `src/index.ts` are byte-identical to 2.0, and
@@ -427,7 +909,7 @@ Bilingual sites move their `lib/seo.js` and `lib/sitemapNoIndex.js` onto
 `@prismetic/seo-utils/bilingual` and `/bilingual/sitemap`. `src/__fixtures__/redsea/` holds
 1,080 cases captured from four live bilingual sites that those entries must reproduce.
 
-## Upgrading to 2.0
+# Upgrading to 2.0
 
 `createSeo` no longer takes `siteTitle` or `siteDescription`; it takes `siteName` — the
 event's name, used as the Open Graph site name and as the last-resort page title. Each
@@ -436,12 +918,18 @@ uses it as the root `title` with no root `description`. Delete the
 `if (!seo) seo = await fetchHomepageSEO()` fallback in front of every `<JsonLd>`: a page
 with no SEO record of its own now renders no JSON-LD rather than the homepage's.
 
-## Development
+# Development
 
 ```bash
-npm test -w seo-utils
+npm test -w seo-utils      # vitest — 279 tests across 11 files
 npm run build -w seo-utils
 ```
 
 `src/__fixtures__` holds byte-identical copies of the two legacy `lib/seo.js` variants and
 of Mosbuild's `lib/generateLlmsTxt.js`; the tests prove the package reproduces them.
+`redsea.golden.test.ts` replays 1,080 cases captured from four live bilingual sites, and
+`mainEntryUnchanged.test.ts` pins the main entry against 2.0.
+
+# License
+
+MIT
