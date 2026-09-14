@@ -175,7 +175,7 @@ The escaped JSON strings `JsonLd` would render, for custom rendering. Never thro
 ### `summarise(text, max?)`
 
 ```ts
-summarise(text: unknown, max = 160): string | null
+summarise(text: unknown, max = 150): string | null
 ```
 
 Collapses a rich-text summary into something usable as a meta description. Returns `null`
@@ -184,7 +184,8 @@ for a non-string or a value that cleans to nothing.
 In order: `<style>` and `<script>` blocks are removed **including their inner text**, then
 all tags, then the six common entities (`&nbsp; &amp; &lt; &gt; &quot; &#39;`), then
 whitespace is collapsed and trimmed. If the result is longer than `max` it is cut at the
-last space and given an ellipsis.
+last space and given an ellipsis. The default is 150 (160 before 2.2), so a cut description,
+ellipsis included, stays under the 155-character and 985-pixel marks Screaming Frog flags.
 
 ```ts
 summarise("<p>Hello&nbsp;world</p>");  // "Hello world"
@@ -699,7 +700,7 @@ A record with a `Name` (speakers, partners) uses `Name — Title` (capped at 60 
 as its title instead, since there `Title` is the job title, and `Name — Title, Company` as
 its description ahead of any `Header.Content`. `Header.Title` loses a `//`
 separator ("Industry Insights // Hub" → "Industry Insights Hub") but is otherwise
-untouched — no truncation, no brand suffix. Summaries are trimmed to 160 characters at a
+untouched — no truncation, no brand suffix. Summaries are trimmed to 150 characters at a
 word boundary and stripped of `<style>`/`<script>` blocks, HTML tags and the six common
 entities. Every source is trimmed before it is tested, so a field saved as a single space
 counts as absent.
@@ -1010,6 +1011,26 @@ the natural next step if more than one non-ITE project needs it.
 - **Requires Node 20.19+ / 22.12+** when loaded from a CommonJS config.
 - **An empty `{}` SEO component counts as a page having its own**, so it inherits nothing.
 
+# Upgrading to 2.2
+
+**One output change, main entry only.** A description generated from page content
+(`Excerpt`, `ShortText`, `Content`, `Header.Content`, or a person's name line) is cut at
+150 characters instead of 160, so that a cut description, ellipsis included, stays under
+the 155-character and 985-pixel marks Screaming Frog flags. A crawl of four sites on 2.1
+found every generated description that reached the old cap flagged as too long.
+
+What moves on a site that upgrades:
+
+- a generated description that was cut at 160 is cut at 150 instead;
+- a source between 151 and 160 characters that used to pass through whole is now cut and
+  given an ellipsis — the one case that gets shorter *and* loses its ending;
+- a hand-written `seo.metaDescription` is never summarised and does not change;
+- titles, canonicals, robots, JSON-LD, the sitemap helpers and the `./bilingual` entries,
+  which never call `summarise`, do not change.
+
+Consumers pin exact versions, so nothing moves until a site bumps. `summarise(text, 160)`
+still gives the old cut where a site calls it directly.
+
 # Upgrading to 2.1
 
 **Nothing to do.** 2.1 adds two new entry points and changes nothing that an existing site
@@ -1032,7 +1053,7 @@ with no SEO record of its own now renders no JSON-LD rather than the homepage's.
 # Development
 
 ```bash
-npm test -w seo-utils      # vitest — 279 tests across 11 files
+npm test -w seo-utils      # vitest — 280 tests across 11 files
 npm run build -w seo-utils
 ```
 

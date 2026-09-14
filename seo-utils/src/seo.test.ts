@@ -62,7 +62,6 @@ const sharedCases: Case[] = [
   ],
   ["root canonical kept on root", { canonicalURL: "https://site.test/" }, "", undefined],
   ["messy path", null, "  //media-gallery/q//  ", { Title: "Q" }],
-  ["truncation at a word boundary", undefined, "articles/baz", { Title: "Baz", Excerpt: LONG }],
   ["whitespace collapse", null, "p", { PageName: "P", ShortText: "  a \n\n b\t c  " }],
   ["blank excerpt falls to default", null, "p", { Title: "P", Excerpt: "   " }],
   ["ShortText used when Excerpt missing", null, "p", { Title: "P", ShortText: "st" }],
@@ -93,6 +92,42 @@ describe("createSeo reproduces the legacy lib/seo.js", () => {
     expect(generateSEOMetadata(seo, path, page)).toStrictEqual(
       withoutSiteDescriptionFallback(legacyMitt.generateSEOMetadata(seo, path, page)),
     );
+  });
+});
+
+/**
+ * The one place 2.2 deliberately diverges from the legacy: a generated description is cut
+ * at 150 characters, not 160. A crawl of four sites on 2.1 found every generated
+ * description that reached the old cap flagged by Screaming Frog as over 155 characters,
+ * so the legacy result is the wrong answer here and is not used as the expectation.
+ */
+describe("createSeo cuts a generated description shorter than the legacy did", () => {
+  const path = "articles/baz";
+  const page = { Title: "Baz", Excerpt: LONG };
+  // The 150th character of LONG falls inside "word22", so word21 is the last kept whole.
+  const WORDS_0_TO_21 = Array.from({ length: 22 }, (_, i) => `word${i}`).join(" ");
+
+  function withoutDescriptions(md: any) {
+    const { description: _d, openGraph, twitter, ...rest } = md;
+    const { description: _og, ...og } = openGraph;
+    const { description: _tw, ...tw } = twitter;
+    return { ...rest, openGraph: og, twitter: tw };
+  }
+
+  it.each([
+    ["original (pharmtech)", legacyPharmtech],
+    ["upgraded (Mitt)", legacyMitt],
+  ])("%s variant: the legacy cut at 160, 2.2 cuts at 150", (_name, legacy) => {
+    const legacyResult = legacy.generateSEOMetadata(undefined, path, page);
+    expect(legacyResult.description.length).toBeGreaterThan(155);
+
+    const md = generateSEOMetadata(undefined, path, page);
+    expect(md.description).toBe(`${WORDS_0_TO_21}…`);
+    expect(md.description!.length).toBeLessThanOrEqual(151);
+    expect(md.openGraph.description).toBe(md.description);
+    expect(md.twitter.description).toBe(md.description);
+    // Everything but the description is still the legacy answer.
+    expect(withoutDescriptions(md)).toStrictEqual(withoutDescriptions(legacyResult));
   });
 });
 
@@ -140,6 +175,15 @@ describe("summarise", () => {
   });
   it("returns short text untouched", () => {
     expect(summarise("short")).toBe("short");
+  });
+  it("defaults to a 150-character cap, so a cut description stays under the 155 crawlers flag", () => {
+    const exact = "a".repeat(150);
+    expect(summarise(exact)).toBe(exact);
+    // 151–160 characters passed through whole under the 160 cap of 2.0/2.1; now cut.
+    const words = "word ".repeat(31).trim(); // 154 characters
+    expect(summarise(words)).toBe(`${"word ".repeat(30).trim()}…`);
+    expect(summarise(words)!.length).toBeLessThanOrEqual(151);
+    expect(summarise(words, 160)).toBe(words);
   });
 });
 

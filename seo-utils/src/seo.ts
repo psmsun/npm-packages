@@ -117,8 +117,13 @@ const ENTITIES: Record<string, string> = {
  * speaker Content is rich-text HTML, so tags and entities are stripped. <style> and
  * <script> blocks go first, inner text included — a page whose Content embeds a form
  * would otherwise describe itself with that form's CSS.
+ *
+ * The cap is 150 (160 until 2.1): a cut description, ellipsis included, then stays under
+ * the 155-character and 985-pixel marks Screaming Frog flags. A crawl of four sites on
+ * 2.1 found every generated description that reached the old cap flagged as too long. A
+ * hand-written `seo.metaDescription` never passes through here and is unaffected.
  */
-export function summarise(text: unknown, max = 160): string | null {
+export function summarise(text: unknown, max = 150): string | null {
   if (typeof text !== "string") return null;
   const clean = text
     .replace(/<(style|script)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, " ")

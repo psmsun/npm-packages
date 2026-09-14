@@ -1,8 +1,11 @@
-# seo-utils 2.2.0 — portability plan
+# seo-utils 2.3.0 — portability plan
+
+> 2026-09-14: 2.2.0 was used by the description-cap change (`summarise` default 160 → 150),
+> so this plan now targets **2.3.0**. Nothing else below has changed.
 
 > **STATUS: PLAN, NOT BUILT.** Written 2026-09-11. Nothing in this document has been
 > implemented. `createSeo` today takes no `mapSeo` or `mapPage`, and the package is
-> still at 2.1.0. Do not read the code blocks below as a description of current
+> still at 2.2.0. Do not read the code blocks below as a description of current
 > behaviour — current behaviour is in [README.md](./README.md).
 >
 > (The same trap as the old `PROPOSAL-3.0-i18n.md`, which described an API that was
@@ -38,7 +41,7 @@ expect(Object.keys(createSeo(ITE)).sort()).toEqual(["generateSEOMetadata"]);
 ```
 
 **Nothing may be added to `createSeo`'s return value** — new capability goes into
-`SeoConfig` only. Every new option defaults to today's behaviour, so all 279 tests
+`SeoConfig` only. Every new option defaults to today's behaviour, so all 280 tests
 must pass **unedited**. An edit to an existing test is a design failure, not a test
 update.
 
@@ -144,7 +147,7 @@ as a live spec to a new reader.
 
 ## Step 7 — Version
 
-`seo-utils/package.json` → **2.2.0**. Additive only; no consumer changes. Consumers
+`seo-utils/package.json` → **2.3.0**. Additive only; no consumer changes. Consumers
 pin with `--save-exact`, so nothing moves until a site bumps deliberately.
 
 ---
@@ -152,7 +155,7 @@ pin with `--save-exact`, so nothing moves until a site bumps deliberately.
 ## Verification
 
 ```bash
-npm test -w seo-utils          # must be 279 passing, with NO test file edited
+npm test -w seo-utils          # must be 280 passing, with NO test file edited
 npm run build -w seo-utils
 npm test --workspaces          # 371 across the monorepo
 ```
