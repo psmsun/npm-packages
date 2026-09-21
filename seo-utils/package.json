@@ -1,6 +1,6 @@
 {
   "name": "@prismetic/seo-utils",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "description": "Next.js metadata, JSON-LD and sitemap noIndex helpers for Strapi-backed sites — React 19 / Next 16",
   "type": "module",
   "main": "dist/index.js",

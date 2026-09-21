@@ -5,7 +5,8 @@
  * this module free of top-level await and of React so that keeps working.
  *
  * The same entry also carries the other next-sitemap helpers: the robots.txt
- * Content-Signal transform and the llms.txt generator (Node-only, never bundled).
+ * Content-Signal transform, the llms.txt generator, and (2.3) the build-output reader
+ * that replaces the CMS query below (Node-only, never bundled).
  */
 
 export {
@@ -18,6 +19,16 @@ export {
   type LlmsTxtOptions,
   type PostFetchLike,
 } from "./llmsTxt.js";
+export {
+  type BuildExcludeReason,
+  type BuildNoIndex,
+  type BuildNoIndexOptions,
+  createSitemapNoIndexFromBuild,
+  type ExportedPage,
+  exportedFilesFor,
+  inspectExportedHtml,
+  type SitemapTransformConfig,
+} from "./buildNoIndex.js";
 
 const STRAPI_NOINDEX_FILTER =
   "filters%5Bseo%5D%5BnoIndex%5D%5B%24eq%5D=true&pagination%5BpageSize%5D=500";
@@ -75,6 +86,7 @@ export type FetchLike = (url: string) => Promise<{
   text?(): Promise<string>;
 }>;
 
+/** @deprecated since 2.3 — use `createSitemapNoIndexFromBuild`, which reads the exported HTML. */
 export interface SitemapNoIndexOptions {
   /** Defaults to DEFAULT_CONTENT_TYPES. */
   contentTypes?: readonly SitemapContentType[];
@@ -88,6 +100,12 @@ export interface SitemapNoIndex {
   getNoIndexPathSetPromise(redirectFetchUrl: string): Promise<Set<string>>;
 }
 
+/**
+ * @deprecated since 2.3. Reads `noIndex` from the CMS, so it cannot see a code-owned page,
+ * a `__placeholder__` or a redirect, and it disagrees with the rendered page whenever the
+ * CMS changed after the build. `createSitemapNoIndexFromBuild` reads the exported HTML
+ * instead. Kept working unchanged; removed in 3.0.
+ */
 export function createSitemapNoIndex(
   options: SitemapNoIndexOptions = {},
 ): SitemapNoIndex {

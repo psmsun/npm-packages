@@ -5,7 +5,8 @@
 > and helpers are generic.
 
 Next.js App Router metadata, JSON-LD and next-sitemap helpers for the Strapi-backed ITE
-sites. One implementation replaces the per-repo `lib/seo.js`, `lib/jsonLd.tsx`,
+sites. Since 2.3 the sitemap's noindex exclusions are read from the exported HTML, so a
+page's own metadata is the only place indexability is declared. One implementation replaces the per-repo `lib/seo.js`, `lib/jsonLd.tsx`,
 `lib/sitemapNoIndex.js` and (Mosbuild) `lib/generateLlmsTxt.js`; those files are deleted
 and the repos use the package directly.
 
@@ -274,7 +275,76 @@ as string literals; `parseNoIndex` is reachable from the two `bilingual` entries
 
 Node-only. Never bundled.
 
-### `createSitemapNoIndex(options?)`
+### `createSitemapNoIndexFromBuild(options?)`
+
+```ts
+createSitemapNoIndexFromBuild(options?: BuildNoIndexOptions): BuildNoIndex
+```
+
+| option | type | default | |
+| --- | --- | --- | --- |
+| `outDir` | `string` | the transform's `config.outDir`, then `"out"` | where `next build` exported the pages |
+| `excludeRedirects` | `boolean` | `true` | leave `<meta http-equiv="refresh">` pages out |
+| `readFile` | `(file) => string \| null` | `fs.readFileSync` | injectable for tests |
+| `onExclude` | `(path, reason) => void` | one `console.log` line | called once per excluded path |
+
+Returns:
+
+```ts
+interface BuildNoIndex {
+  /** The exported page behind a sitemap path, or null when no file exists for it. */
+  inspect(path: string, config?: { outDir?: string | null }): ExportedPage | null;
+  /** True when the exported page must stay out of the sitemap. */
+  shouldExclude(path: string, config?: { outDir?: string | null }): boolean;
+}
+```
+
+```js
+const {
+  contentSignalRobotsTxt,
+  createSitemapNoIndexFromBuild,
+} = require("@prismetic/seo-utils/sitemap");
+const buildNoIndex = createSitemapNoIndexFromBuild();
+
+module.exports = {
+  siteUrl: SITE_URL,
+  outDir: "out",
+  transform: async (config, path) => {
+    if (buildNoIndex.shouldExclude(path, config)) return null;
+    return {
+      loc: path,
+      changefreq: config.changefreq,
+      priority: config.priority,
+      lastmod: config.autoLastmod ? new Date().toISOString() : undefined,
+      alternateRefs: config.alternateRefs ?? [],
+    };
+  },
+};
+```
+
+`shouldExclude` reads the HTML that `next build` exported for the path — `out/a/b/index.html`
+for `/a/b/`, then `out/a/b.html` — and returns true when its `<head>` says the page is not
+one to list:
+
+| the page renders | reason | why |
+| --- | --- | --- |
+| `<meta name="robots" content="noindex…">` or `"none"` | `noindex` | `robots: { index: false }` in its metadata, or `notFound()` — Next adds the tag itself |
+| `<meta http-equiv="refresh">` | `redirect` | a `StaticRedirect`; a static export cannot emit a 3xx |
+
+That is every page, CMS-driven or code-owned, with nothing to keep in sync: a page's own
+metadata is the one place its indexability is declared, and the sitemap now reads it from
+the same file the crawler will. A missing file is kept in the sitemap and reported with
+`console.error` — the sitemap step must not fail a build. A page with no robots meta at all
+is kept: the page, not the sitemap config, has to say noindex. See
+[Sitemap: what the exported page says](#sitemap-what-the-exported-page-says).
+
+### `createSitemapNoIndex(options?)` — deprecated
+
+> **Deprecated in 2.3, removed in 3.0.** Kept working unchanged. It asks the CMS which
+> records have `noIndex: true`, so it cannot see a code-owned page, a `__placeholder__` or
+> a redirect, each of which needed its own regex in the config — and it disagrees with the
+> rendered page whenever the CMS changed after the build. Use
+> `createSitemapNoIndexFromBuild`.
 
 ```ts
 createSitemapNoIndex(options?: SitemapNoIndexOptions): SitemapNoIndex
@@ -454,10 +524,19 @@ type FetchLike = (url: string) => Promise<{
 }>;
 
 type TransformRobotsTxt = (config: unknown, robotsTxt: string) => Promise<string>;
+
+interface ExportedPage {
+  robots: string | null;   // content of the first <meta name="robots">, null when absent
+  noIndex: boolean;        // any robots meta says noindex or none
+  redirect: boolean;       // <meta http-equiv="refresh"> present
+}
+type BuildExcludeReason = "noindex" | "redirect";
 ```
 
-Also exported: `SitemapNoIndexOptions`, `SitemapNoIndex`, `LlmsTxtOptions`,
-`PostFetchLike`, `DEFAULT_CONTENT_SIGNAL`.
+Also exported: `SitemapNoIndexOptions`, `SitemapNoIndex`, `BuildNoIndexOptions`,
+`BuildNoIndex`, `SitemapTransformConfig`, `LlmsTxtOptions`, `PostFetchLike`,
+`DEFAULT_CONTENT_SIGNAL`, and the two pure pieces of the build reader,
+`inspectExportedHtml(html)` and `exportedFilesFor(path, outDir)`.
 
 ---
 
@@ -753,9 +832,42 @@ Enabling either option changes which pages are indexed, so run the CMS audit fir
 turn them on with the specific list of pages the audit says they repair. The audit output
 is the record of what changed and why; do not enable these blind.
 
+## Sitemap: what the exported page says
+
+`createSitemapNoIndexFromBuild` runs inside next-sitemap's `transform`, after `next build`,
+so every path it is asked about is already an HTML file. It reads that file's `<head>` and
+nothing else:
+
+- **`noindex` wins over everything.** If any `<meta name="robots">` carries `noindex` or
+  `none`, the page is out. That is what the crawler will read, so it is also what the
+  sitemap says. The CMS is not consulted: a record that says `noIndex` but a page that
+  renders `index, follow` is a page bug, and hiding it from the sitemap would not hide it
+  from search.
+- **A redirect is not a page.** `StaticRedirect` renders `<meta http-equiv="refresh">` and
+  no robots meta; with `excludeRedirects: true` (default) it is left out. This replaces the
+  per-path fetch of the `*-redirects` collection that the ITE configs used to make — one
+  uncached HTTP request per sitemap entry.
+- **`__placeholder__` needs no regex.** A route that calls `notFound()` renders with
+  `<meta name="robots" content="noindex"/>`, which Next adds itself, so the reader drops it.
+  A placeholder that *does not* call `notFound()` — one that renders a "No articles
+  available" page with no robots meta — is a real, indexable page and stays in. Fix the
+  page, not the config.
+- **No robots meta means keep.** A page that declares nothing is treated as indexable,
+  exactly as a crawler treats it.
+- **A missing file means keep, loudly.** `console.error` names the path and the files it
+  looked for. `next-sitemap` enumerates `.next/prerender-manifest.json`, not `out/`, so a
+  path can in principle exist there without a file — that has not been seen on any site.
+- **Cost.** One synchronous read per path, ~0.35 ms each on a 100 KB page. Mosbuild's 463
+  pages take 163 ms; the largest ITE export (914 pages) stays under half a second.
+
+Measured inside Mosbuild's real postbuild on 2026-09-21, the reader reproduces the
+previous sitemap exactly — 435 entries, 7 noindex pages and 19 redirects dropped — with the
+two regex guards, the per-path redirects fetch and the CMS query removed. `/404/` and
+`/_not-found/` never reach `transform`; next-sitemap skips them itself.
+
 ## Sitemap fetch failures
 
-`createSitemapNoIndex` classifies a failed collection query instead of swallowing every
+`createSitemapNoIndex` (deprecated) classifies a failed collection query instead of swallowing every
 non-OK response:
 
 | response | behaviour |
@@ -924,7 +1036,8 @@ See the sitemap note below.
   `Header.Title`, `Header.Content`, `PageName`, `Name`, `Company`, `Excerpt`, `ShortText`,
   `Content`. There is no accessor option, unlike `@prismetic/article-filters`'
   `ArticleAccessors`. On another CMS these simply never match — see below.
-- **Neither sitemap helper serves a monolingual non-ITE site.** `createSitemapNoIndex`
+- **`createSitemapNoIndexFromBuild` serves any `output: "export"` site** — it reads
+  HTML, not a CMS. The two CMS-backed helpers do not: `createSitemapNoIndex`
   requires a `*-redirects` REST URL matching `/api/<slug>-redirects` and prefixes every
   collection with the slug it derives from it — `articles` is queried as
   `<slug>-articles`, ITE's multi-tenant naming. `createLocaleSitemapNoIndex` avoids that,
@@ -1010,6 +1123,42 @@ the natural next step if more than one non-ITE project needs it.
   from `.`** even though they exist in the source. Pass policies as string literals.
 - **Requires Node 20.19+ / 22.12+** when loaded from a CommonJS config.
 - **An empty `{}` SEO component counts as a page having its own**, so it inherits nothing.
+
+# Upgrading to 2.3
+
+**Additive. No output changes.** One new export on `./sitemap`,
+`createSitemapNoIndexFromBuild`, plus its two pure pieces `inspectExportedHtml` and
+`exportedFilesFor`. `createSitemapNoIndex` is deprecated but unchanged; it goes in 3.0.
+
+A site that upgrades and does nothing else moves nothing. A site that switches its
+`next-sitemap.config.js` to the build reader can delete three things from `transform`:
+
+```diff
+-const { normalizeSitemapPath, getNoIndexPathSetPromise } =
+-  createSitemapNoIndex({ contentTypes: [...DEFAULT_CONTENT_TYPES, { uid: "campaign-pages", field: "PagePath", prefix: "lp" }] });
++const buildNoIndex = createSitemapNoIndexFromBuild();
+
+   transform: async (config, path) => {
+-    if (/\/__placeholder__\/?$/.test(path)) return null;
+-    if (/\/lp\/campaign-components\/?$/.test(path)) return null;
+-    if (await customIgnoreFunction(path)) return null;          // the redirects fetch
+-    const noIndexSet = await getNoIndexPathSetPromise(REDIRECTS_FETCH_URL);
+-    if (noIndexSet.has(normalizeSitemapPath(path))) return null;
++    if (buildNoIndex.shouldExclude(path, config)) return null;
+     return { loc: path, /* … */ };
+   },
+```
+
+Before switching, check two things in the site's own `out/`:
+
+1. Every placeholder route calls `notFound()`. A placeholder that renders a page instead
+   (`/articles/placeholder/`, `/articles/no-articles-available/`) has no robots meta and
+   will be listed — as it already is today, since the `__placeholder__` regex never matched
+   it either. Fix the route.
+2. Any page the old config excluded by CMS `noIndex` renders `noindex` itself. It does when
+   the route uses `generateSEOMetadata`; a route that builds its own metadata may not.
+
+The sitemap should come out identical. Diff `out/sitemap.xml` before and after.
 
 # Upgrading to 2.2
 
