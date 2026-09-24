@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { demoteHeadings } from "./demoteHeadings.js";
 import { parseMarkdownLinks } from "./parseMarkdownLinks.js";
 
 describe("parseMarkdownLinks", () => {
@@ -119,5 +120,59 @@ describe("parseMarkdownLinks", () => {
   it("does not leak regex state between calls", () => {
     const input = "[a](/a) and [b](/b)";
     expect(parseMarkdownLinks(input)).toEqual(parseMarkdownLinks(input));
+  });
+});
+
+describe("demoteHeadings", () => {
+  it("renames h1 to h2 and keeps the attributes", () => {
+    expect(demoteHeadings('<h1 class="title" id="intro">Intro</h1><p>Body</p>')).toBe(
+      '<h2 class="title" id="intro">Intro</h2><p>Body</p>',
+    );
+  });
+
+  it("is case-insensitive", () => {
+    expect(demoteHeadings('<H1 Class="x">A</H1><h1>B</H1>')).toBe(
+      '<h2 Class="x">A</h2><h2>B</h2>',
+    );
+  });
+
+  it("keeps nested inline tags", () => {
+    expect(demoteHeadings('<h1>Big <strong>news</strong>, <a href="/x">read</a></h1>')).toBe(
+      '<h2>Big <strong>news</strong>, <a href="/x">read</a></h2>',
+    );
+  });
+
+  it("handles an empty h1", () => {
+    expect(demoteHeadings("<h1></h1>")).toBe("<h2></h2>");
+  });
+
+  it("matches every character that ends a tag name", () => {
+    expect(demoteHeadings("<h1\tid=a>x</h1\n>")).toBe("<h2\tid=a>x</h2\n>");
+    expect(demoteHeadings("<h1\fid=a>x</h1\r>")).toBe("<h2\fid=a>x</h2\r>");
+    expect(demoteHeadings("<h1/>")).toBe("<h2/>");
+  });
+
+  it("leaves every other tag alone", () => {
+    const html = "<header><h2>A</h2><h10>B</h10><h1-x>C</h1-x><hr></header>";
+    expect(demoteHeadings(html)).toBe(html);
+  });
+
+  it("leaves html with no h1, plain text and escaped markup alone", () => {
+    for (const html of ["", "<p>No heading here</p>", "Use &lt;h1&gt; once; h1 is text"]) {
+      expect(demoteHeadings(html)).toBe(html);
+    }
+  });
+
+  it("returns non-string input unchanged", () => {
+    expect(demoteHeadings(null)).toBe(null);
+    expect(demoteHeadings(undefined)).toBe(undefined);
+    expect(demoteHeadings(42)).toBe(42);
+    const trusted = { toString: () => "<h1>x</h1>" };
+    expect(demoteHeadings(trusted)).toBe(trusted);
+  });
+
+  it("is idempotent", () => {
+    const once = demoteHeadings("<h1>A</h1><h2>B</h2>");
+    expect(demoteHeadings(once)).toBe(once);
   });
 });

@@ -1,3 +1,4 @@
+export { demoteHeadings } from "./demoteHeadings.js";
 export {
   MarkdownLinks,
   type LinkComponent,

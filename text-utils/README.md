@@ -4,7 +4,8 @@
 > plain-text CMS fields rather than rich text. Nothing here is Strapi-specific.
 
 Lets content editors put links inside plain-text CMS fields by writing
-`[label](url)`, without giving them a rich-text editor.
+`[label](url)`, without giving them a rich-text editor — and stops rich-text
+fields from adding a second `<h1>` to the page.
 
 ## Install
 
@@ -22,7 +23,8 @@ npm install @prismetic/text-utils
 | `"use client"` | **not needed.** `MarkdownLinks` is not a hook and renders in server components |
 | Tested against | React 19 / Next 16 |
 
-`parseMarkdownLinks` has no React import at all and runs anywhere.
+`parseMarkdownLinks` and `demoteHeadings` have no React import at all and run
+anywhere.
 
 ## Quick start
 
@@ -54,6 +56,19 @@ const Text = ({ as: Component = "p", children, linkify = true, ...props }) => (
 excerpts and button labels are often wrapped in one big `<a>`; a link inside a
 link is invalid HTML, and the browser repairs it by tearing the outer anchor
 apart — the card stops being clickable and React logs a hydration mismatch.
+
+### Rich-text fields
+
+Wrap the HTML in `demoteHeadings` wherever a rich-text field is rendered, so an
+editor's "Heading 1" can't become a second `<h1>` beside the page template's:
+
+```tsx
+import { demoteHeadings } from "@prismetic/text-utils";
+
+const RTE = ({ html }) => (
+  <div className="rte-style" dangerouslySetInnerHTML={{ __html: demoteHeadings(html) }} />
+);
+```
 
 ## API reference
 
@@ -159,6 +174,55 @@ Every href is passed through untouched — `/programme`, `programme`,
 The module-level regex has its `lastIndex` reset on entry, so repeated calls
 with the same input return identical results.
 
+### `demoteHeadings(html)`
+
+```ts
+demoteHeadings(html: string): string
+demoteHeadings<T>(html: T): T
+```
+
+Renames every `<h1>` tag in an HTML string to `<h2>`, so the page template's own
+`<h1>` stays the only one. Attributes and content are kept, the match is
+case-insensitive, and `<h2>`–`<h6>` are not touched.
+
+```ts
+demoteHeadings('<h1 class="title">Intro</h1><p>Body</p>');
+// '<h2 class="title">Intro</h2><p>Body</p>'
+
+demoteHeadings("<H1>Big <em>news</em></H1>");     // "<h2>Big <em>news</em></h2>"
+demoteHeadings("<header><h10>x</h10></header>");  // unchanged
+demoteHeadings("Use &lt;h1&gt; once");            // unchanged — escaped markup is text
+demoteHeadings(null);                             // null
+```
+
+| `html` | returns |
+| --- | --- |
+| a string | the same string with every `<h1 …>` and `</h1>` renamed to `h2` |
+| anything else | the input itself, untouched |
+
+Passing non-strings through means `__html: demoteHeadings(html)` behaves exactly
+like `__html: html` for every value except a string containing an `<h1>`.
+
+A tag counts as `h1` exactly when a browser would parse it as one: `h1` followed
+by whitespace, `/` or `>`. `<h10>`, `<header>` and custom elements like
+`<h1-x>` are left alone.
+
+It is a plain string rewrite — no DOM, no dependencies — so it runs in server
+components, at build time and in static export, and gives identical output on
+server and client. Being textual, it also renames an `<h1` inside an HTML
+comment, an attribute value or `<script>` text; that changes one digit and
+nothing else.
+
+⚠️ **It is not a sanitizer.** The output is exactly as trusted as the input:
+the only change is one digit in a tag name, so it can neither add nor remove
+markup.
+
+⚠️ **Only use it where the page template renders its own `<h1>`.** A page whose
+only `<h1>` comes from rich text is left with none.
+
+Demoted headings take `h2` styling and sit at the same level as the editor's
+own `<h2>`s; nothing marks them as former `h1`s.
+
 ### Type exports
 
 ```ts
@@ -209,6 +273,9 @@ parseMarkdownLinks("[bad](javascript:x) and [good](/g)").filter((t) => t.type ==
 Note the scheme check is the **only** thing inspected. Everything else is your
 `link` component's responsibility.
 
+`demoteHeadings` does no sanitising at all — HTML passed through it is exactly
+as trusted as before.
+
 ## What editors can write
 
 | Written in the CMS | Result |
@@ -240,7 +307,7 @@ content editors.
 ## Development
 
 ```bash
-npm test -w text-utils     # vitest — 13 tests, all against parseMarkdownLinks
+npm test -w text-utils     # vitest — 22 tests, against parseMarkdownLinks and demoteHeadings
 npm run build -w text-utils
 ```
 
