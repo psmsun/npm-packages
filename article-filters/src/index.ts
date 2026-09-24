@@ -9,6 +9,7 @@ export {
   articleTopicSlugs,
   articleYear,
   buildFilterSearch,
+  canResetFilters,
   DEFAULT_SORT,
   defaultAccessors,
   deriveTopicNames,

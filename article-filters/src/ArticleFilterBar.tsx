@@ -146,6 +146,8 @@ const FilterControl = ({
             sideOffset={4}
             className={cx("article-filter-bar__panel", classNames?.panel)}
             onOpenAutoFocus={(event) => event.preventDefault()}
+            // ScrollSmoother moves the trigger by transform after scroll events stop, which "optimized" misses.
+            updatePositionStrategy="always"
           >
             {/* biome-ignore lint/a11y/useKeyWithClickEvents: keyboard handled below */}
             <div
@@ -176,6 +178,8 @@ export interface ArticleFilterBarProps {
   labels?: ArticleFilterBarLabels;
   /** Sort options with site-specific wording, e.g. a translated set. */
   sortOptions?: { value: SortKey; label: string }[];
+  /** Rendered last in the row, after Sort — e.g. the site's own Reset button. */
+  children?: ReactNode;
 }
 
 export const ArticleFilterBar = ({
@@ -191,6 +195,7 @@ export const ArticleFilterBar = ({
   classNames,
   labels,
   sortOptions = SORT_OPTIONS,
+  children,
 }: ArticleFilterBarProps) => {
   const text = { ...DEFAULT_LABELS, ...labels };
 
@@ -326,6 +331,8 @@ export const ArticleFilterBar = ({
           </button>
         ))}
       </FilterControl>
+
+      {children}
     </div>
   );
 };

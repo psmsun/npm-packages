@@ -12,6 +12,9 @@
  * fallback, so a site that defines --mainColor1 gets its brand automatically.
  */
 
+/* Layered: an unlayered import beats Tailwind v4's @layer utilities, which would silently kill every classNames override. */
+@layer components {
+
 .article-filter-bar {
   display: flex;
   flex-direction: column;
@@ -144,4 +147,6 @@
   text-align: start;
   text-transform: uppercase;
   cursor: pointer;
+}
+
 }

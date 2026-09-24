@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildFilterSearch,
+  canResetFilters,
   deriveTopicNames,
   deriveTopicOptions,
   deriveYears,
@@ -238,5 +239,20 @@ describe("buildFilterSearch", () => {
         sort: "newest",
       }),
     ).toBe("");
+  });
+});
+
+describe("canResetFilters", () => {
+  it("is false at the defaults", () => {
+    expect(canResetFilters({ topics: [], year: "", sort: "newest" })).toBe(false);
+  });
+
+  it("counts a sort-only change, unlike isFiltered", () => {
+    expect(canResetFilters({ topics: [], year: "", sort: "oldest" })).toBe(true);
+  });
+
+  it("is true for a topic or a year", () => {
+    expect(canResetFilters({ topics: ["dairy"], year: "", sort: "newest" })).toBe(true);
+    expect(canResetFilters({ topics: [], year: "2025", sort: "newest" })).toBe(true);
   });
 });

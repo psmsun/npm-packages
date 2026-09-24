@@ -63,9 +63,10 @@ export const slugifyTopic = (name: string): string =>
     .replace(/^-+|-+$/g, "");
 
 /**
- * PublishedDate is a plain "YYYY-MM-DD" string. Slicing beats new Date(),
- * which parses as UTC and would push a Jan 1 article into the previous year
- * for any viewer west of UTC.
+ * PublishedDate is an ISO date or datetime ("2025-01-01" or
+ * "2025-01-01T03:30:00.000Z"), so the first four characters are the (UTC)
+ * year. Slicing beats new Date(), which would shift the year by the viewer's
+ * timezone.
  */
 export const articleYear = <T,>(
   article: T,
@@ -225,6 +226,10 @@ export const parseFilterParams = (
   }
   return state;
 };
+
+/** True when anything differs from the defaults — unlike isFiltered, sort counts. */
+export const canResetFilters = (state: FilterState): boolean =>
+  state.topics.length > 0 || state.year !== "" || state.sort !== DEFAULT_SORT;
 
 /** Defaults write no param, so an unfiltered list keeps a clean URL. */
 export const buildFilterSearch = (search: string, state: FilterState): string => {

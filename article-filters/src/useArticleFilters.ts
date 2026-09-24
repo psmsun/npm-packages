@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   type ArticleAccessors,
   buildFilterSearch,
+  canResetFilters,
   DEFAULT_SORT,
   deriveTopicNames,
   deriveTopicOptions,
@@ -40,6 +41,8 @@ export interface UseArticleFiltersResult<T> {
   setSort: (sort: SortKey) => void;
   resetAll: () => void;
   isFiltered: boolean;
+  /** True when anything differs from the defaults, sort included — drives a Reset button. */
+  canReset: boolean;
   /** Changes whenever the result set changes; use it to reset pagination. */
   signature: string;
 }
@@ -147,6 +150,11 @@ export default function useArticleFilters<T>(
     setSort,
     resetAll,
     isFiltered: selectedTopics.length > 0 || selectedYear !== "",
+    canReset: canResetFilters({
+      topics: selectedTopics,
+      year: selectedYear,
+      sort,
+    }),
     signature: `${selectedTopics.join(",")}|${selectedYear}|${sort}`,
   };
 }

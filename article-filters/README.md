@@ -38,6 +38,13 @@ emit nothing in the other.
 The stylesheet is optional. Without it the bar renders unstyled but fully
 functional; with it you get layout, the popover panel and the checkbox.
 
+Every rule sits in **`@layer components`**. Tailwind v4 emits utilities in
+`@layer utilities`, and an unlayered stylesheet beats any layered rule
+regardless of specificity — so without the layer, a `classNames` utility on a
+property the defaults already set (trigger font, panel background, …) would be
+silently dead. `@import "tailwindcss"` declares the layer order first, so the
+package rules land below utilities with no extra syntax on the import.
+
 ## Requirements
 
 | | |
@@ -73,7 +80,15 @@ return (
       onClearTopics={filters.clearTopics}
       onYearChange={filters.setYear}
       onSortChange={filters.setSort}
-    />
+    >
+      <button
+        type="button"
+        disabled={!filters.canReset}
+        onClick={filters.resetAll}
+      >
+        Reset filters
+      </button>
+    </ArticleFilterBar>
     {filters.articles.map((article) => (
       <Card key={article.id} {...article} />
     ))}
@@ -82,7 +97,8 @@ return (
 ```
 
 `filters.articles` is the filtered **and** sorted list. You render that, not the
-array you passed in.
+array you passed in. Children render last in the bar's row — pass the site's own
+Button there for a Reset control.
 
 ### Real-world usage
 
@@ -183,6 +199,7 @@ Returns `UseArticleFiltersResult<T>`:
 | `setSort` | `(sort: SortKey) => void` | |
 | `resetAll` | `() => void` | topics, year and sort back to defaults |
 | `isFiltered` | `boolean` | true when a topic or year is active — **sort is not counted** |
+| `canReset` | `boolean` | true when anything differs from the defaults, **sort included** — drives a Reset button |
 | `signature` | `string` | changes whenever the result set changes; use as a `useEffect` dep to reset pagination |
 
 ```tsx
@@ -216,6 +233,7 @@ the MUI sites reuse the hook without this component.
 | `classNames` | `ArticleFilterBarClassNames` | `{}` | merged **after** the BEM defaults |
 | `labels` | `ArticleFilterBarLabels` | English | per-key override, see below |
 | `sortOptions` | `{ value: SortKey; label: string }[]` | `SORT_OPTIONS` | site-specific or translated sort wording |
+| `children` | `ReactNode` | — | rendered last in the row, after Sort, with no wrapper — e.g. a Reset button |
 
 **`classNames` keys** — each maps onto the BEM class it sits beside:
 
@@ -329,7 +347,7 @@ articleYear<T>(article: T, accessors: Required<ArticleAccessors<T>>): string
 ```
 
 The first four characters of `getDate(article)`, or `""`. Returns a string, not
-a number.
+a number. For an ISO datetime (`2025-01-01T03:30:00.000Z`) that is the UTC year.
 
 #### `articleTopicSlugs(article, accessors)`
 
@@ -515,6 +533,20 @@ buildFilterSearch("?topics=dairy&year=2025", { topics: [], year: "", sort: "newe
 The comma between slugs is percent-encoded to `%2C` by `URLSearchParams`;
 `parseFilterParams` decodes it back.
 
+#### `canResetFilters(state)`
+
+```ts
+canResetFilters(state: FilterState): boolean
+```
+
+True when topics, year **or sort** differ from the defaults. The hook exposes it
+as `canReset`.
+
+```ts
+canResetFilters({ topics: [], year: "", sort: "newest" }); // false
+canResetFilters({ topics: [], year: "", sort: "oldest" }); // true
+```
+
 ---
 
 ### Constants
@@ -575,8 +607,9 @@ Note that `parseFilterParams` returns `Partial<FilterState>` while
 - URL state is written with `history.replaceState`, defaults omitted. Unrelated
   params (utm tags) are preserved. Values absent from the current data are
   dropped on read rather than applied.
-- The year is read off the `YYYY-MM-DD` string, not through `new Date()`, which
-  would shift a Jan 1 article into the previous year west of UTC.
+- The year is sliced off the ISO date or datetime string (`2025-01-01` or
+  `2025-01-01T03:30:00.000Z` — the UTC year), not read through `new Date()`,
+  which would shift it by the viewer's timezone.
 
 ### Why the URL is read in an effect, not during render
 
@@ -598,6 +631,10 @@ pure width change — shifting the centred container sideways every time a panel
 opens. Non-modal avoids the whole class of bug. The MUI bar needs
 `disableScrollLock: true` for the same reason.
 
+The panel uses `updatePositionStrategy="always"`: GSAP ScrollSmoother keeps
+moving the trigger by transform after scroll events stop, which Radix's default
+`"optimized"` strategy misses. The rAF loop runs only while a panel is open.
+
 ## Limits
 
 - **Renaming a tag in Strapi changes its slug and breaks already-shared
@@ -607,20 +644,21 @@ opens. Non-modal avoids the whole class of bug. The MUI bar needs
   `useArticleFilters`; they are read once into a ref.
 - **`slugifyTopic` keeps Latin and Cyrillic only.** A tag in any other script
   slugs to `""` and is dropped from the topic list entirely.
-- **`getDate` must be a `YYYY-MM-DD`-prefixed string.** A `Date` object or a
+- **`getDate` must be an ISO (`YYYY-MM-DD`-prefixed) string.** A `Date` object or a
   non-ISO format yields a garbage year, because the year is sliced off the
   string rather than parsed.
-- **`isFiltered` ignores sort.** Changing sort alone leaves it `false`, which is
-  usually what a "Clear filters" affordance wants.
+- **`isFiltered` ignores sort.** Changing sort alone leaves it `false`. Use
+  `canReset` for a Reset button that should also undo a sort change.
 - **No pagination.** `signature` exists so you can reset your own.
 
 ## Development
 
 ```bash
-npm test -w article-filters      # vitest — 28 tests over the pure layer
+npm test -w article-filters      # vitest — 31 over the pure layer, 2 over the bar's slot
 npm run build -w article-filters # tsc, emits dist/
 ```
 
-The tests in `src/article-filters.test.ts` cover `filters.ts` only; the hook and
-the bar have no test coverage. Every example in the API reference above is taken
+`src/article-filters.test.ts` covers `filters.ts`; `src/ArticleFilterBar.test.tsx`
+renders the bar with `renderToStaticMarkup` to pin the `children` slot. The hook
+has no test coverage. Every example in the API reference above is taken
 from a passing assertion in that file.
