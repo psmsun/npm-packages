@@ -14,6 +14,11 @@ export {
   showValidationMessage,
 } from "./form-utils.js";
 export {
+  isActiveCampaignSimpleEmbed,
+  RECAPTCHA_NET_HOST,
+  rewriteRecaptchaHost,
+} from "./recaptcha.js";
+export {
   type FormContentFlags,
   useFormContentFlags,
 } from "./useFormContentFlags.js";

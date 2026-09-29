@@ -246,13 +246,56 @@ for React 19.
 | --- | --- | --- | --- |
 | `html` | `string` | — | markup to inject |
 | `allowRerender` | `boolean` | `false` | re-inject when `html` changes |
+| `recaptchaHost` | `string` | — | rewrite `www.google.com/recaptcha/` to this host before injecting; see [reCAPTCHA host](#recaptcha-host) |
 
-Any other prop passes through to the wrapping `div`. With `allowRerender: false`
+`recaptchaHost` never reaches the DOM. Any other prop passes through to the wrapping `div`. With `allowRerender: false`
 the markup is injected once and later `html` changes are ignored; remount with a
 `key` to force a fresh injection, as the real-world example above does.
 
 An empty `html` logs `html prop can't be null` to the console and injects
 nothing.
+
+### reCAPTCHA host
+
+`www.google.com` is blocked in mainland China, so a reCAPTCHA loaded from it fails there.
+`www.recaptcha.net` is Google's documented host for regions where `www.google.com` is
+not accessible, and serves the same API. The site decides per
+locale whether to switch:
+
+```tsx
+import { HTMLContent, RECAPTCHA_NET_HOST } from "@prismetic/form-utils";
+
+<HTMLContent
+  html={props.data.Data}
+  id={props.data.id}
+  key={props.data.id}
+  recaptchaHost={locale === "zh-CN" ? RECAPTCHA_NET_HOST : undefined}
+/>
+```
+
+Without `recaptchaHost`, `HTMLContent` behaves exactly as in 1.2.1.
+
+#### `rewriteRecaptchaHost(html, host?)`
+
+```ts
+rewriteRecaptchaHost(html: string, host?: string): string   // host defaults to RECAPTCHA_NET_HOST
+```
+
+Replaces every `www.google.com/recaptcha/` — script `src`, strings inside inline
+scripts — with `${host}/recaptcha/`. Nothing else on `google.com` is touched, and a
+non-string input is returned as is. `RECAPTCHA_NET_HOST` is `"www.recaptcha.net"`.
+
+#### `isActiveCampaignSimpleEmbed(html)`
+
+```ts
+isActiveCampaignSimpleEmbed(html: string): boolean
+```
+
+True when the markup loads an ActiveCampaign **simple embed** (`embed.php`). That script
+fetches the form and its reCAPTCHA from ActiveCampaign at runtime, so the host cannot be
+rewritten. `HTMLContent` with `recaptchaHost` set logs one `console.error` naming the form
+during the server render when it meets one; paste the **full embed code** into the CMS
+instead.
 
 ---
 
@@ -350,6 +393,8 @@ is still in flight. Greylisting hosts routinely take 11–13s to answer.
 `NeverBounceResponse` · `NeverBounceListener` · `NeverBounceWidget` ·
 `HTMLContentProps` · `FormContentFlags` · `UtmSearchParams`
 
+Also exported: `RECAPTCHA_NET_HOST`, `rewriteRecaptchaHost`, `isActiveCampaignSimpleEmbed`.
+
 ```ts
 interface NeverBounceResponse {
   result: "valid" | "invalid" | "disposable" | "catchall" | "unknown";
@@ -415,13 +460,14 @@ before gathering any evidence, and absence of evidence isn't grounds to reject.
 ## Development
 
 ```bash
-npm test -w form-utils     # vitest — 26 tests
+npm test -w form-utils     # vitest — 50 tests
 npm run build -w form-utils
 ```
 
-Tests cover `form-utils.ts` — the pure validation helpers. The four hooks and
-`HTMLContent` have no automated coverage; they need a DOM, a remote script and a
-third-party widget.
+Tests cover the pure helpers in `form-utils.ts` and `recaptcha.ts`, and `HTMLContent` in
+happy-dom: without `recaptchaHost` its injected DOM and server markup must equal 1.2.1's,
+kept byte-identical in `src/__fixtures__/HTMLContent-1.2.1.ts`. The four hooks have no
+automated coverage; they need a remote script and a third-party widget.
 
 ## License
 

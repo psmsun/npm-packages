@@ -16,18 +16,28 @@ and the repos use the package directly.
 npm install @prismetic/seo-utils --save-exact   # exact pin, no caret
 ```
 
-Four entries. The first two are the single-language ITE pair and are unchanged since 2.0;
-the `bilingual` pair was added in 2.1 for sites whose URLs carry a locale segment.
+Five entries. The first two are the single-language ITE pair; `localized` (2.4) wraps
+`createSeo` for a site with more than one locale, and the `bilingual` pair (2.1) serves
+sites whose every URL carries a locale segment.
 
 | Entry | For | Imports React | Runs |
 | --- | --- | --- | --- |
 | `@prismetic/seo-utils` | page metadata and JSON-LD | yes | build + request |
-| `@prismetic/seo-utils/sitemap` | `next-sitemap.config.js` — noIndex exclusions, robots.txt Content-Signal, llms.txt | no | Node only, never bundled |
+| `@prismetic/seo-utils/sitemap` | `next-sitemap.config.js` — noIndex exclusions, hreflang alternates, robots.txt Content-Signal, llms.txt | no | Node only, never bundled |
+| `@prismetic/seo-utils/localized` | page metadata per locale, each with an optional URL prefix (`/about/`, `/cn/about/`) | no | build + request |
 | `@prismetic/seo-utils/bilingual` | page metadata for localized URLs (`/en/…`, `/ar/…`) | no | build + request |
 | `@prismetic/seo-utils/bilingual/sitemap` | sitemap helpers for those sites | no | Node only |
 
-Nothing in the `bilingual` entries is reachable from `.` or `./sitemap`, which is how a
-single-language site is guaranteed the output it had in 2.0.
+Which entry for page metadata:
+
+- **`.`** — a single language.
+- **`./localized`** — several locales, each with an optional prefix. Mosbuild: English
+  unprefixed (`/about/`), Chinese under `/cn/about/`.
+- **`./bilingual`** — every locale prefixed, the default included. Red Sea: `/en/dining/`,
+  `/ar/dining/`.
+
+Nothing in `./localized` or the `bilingual` entries is reachable from `.` or `./sitemap`,
+which is how a single-language site is guaranteed the output it had in 2.0.
 
 ## Requirements
 
@@ -287,6 +297,7 @@ createSitemapNoIndexFromBuild(options?: BuildNoIndexOptions): BuildNoIndex
 | `excludeRedirects` | `boolean` | `true` | leave `<meta http-equiv="refresh">` pages out |
 | `readFile` | `(file) => string \| null` | `fs.readFileSync` | injectable for tests |
 | `onExclude` | `(path, reason) => void` | one `console.log` line | called once per excluded path |
+| `cache` | `boolean` | `false` | read each exported file once per instance, shared by `inspect`, `shouldExclude` and `alternateRefs` |
 
 Returns:
 
@@ -296,6 +307,8 @@ interface BuildNoIndex {
   inspect(path: string, config?: { outDir?: string | null }): ExportedPage | null;
   /** True when the exported page must stay out of the sitemap. */
   shouldExclude(path: string, config?: { outDir?: string | null }): boolean;
+  /** The page's own hreflang links, minus any whose target is not in the sitemap. */
+  alternateRefs(path: string, config?: { outDir?: string | null; siteUrl?: string | null }): SitemapAlternateRef[];
 }
 ```
 
@@ -337,6 +350,49 @@ the same file the crawler will. A missing file is kept in the sitemap and report
 `console.error` — the sitemap step must not fail a build. A page with no robots meta at all
 is kept: the page, not the sitemap config, has to say noindex. See
 [Sitemap: what the exported page says](#sitemap-what-the-exported-page-says).
+
+`alternateRefs(path, config)` copies the page's own hreflang links — each
+`<link rel="alternate" hreflang href>` in its exported `<head>`, in document order — into
+next-sitemap's `alternateRefs`, so the sitemap says what the page says. For a site on
+[`./localized`](#entry-localized--metadata-per-locale-optional-prefix):
+
+```js
+const buildNoIndex = createSitemapNoIndexFromBuild({ cache: true });
+
+module.exports = {
+  siteUrl: SITE_URL,
+  outDir: "out",
+  transform: async (config, path) => {
+    if (buildNoIndex.shouldExclude(path, config)) return null;
+    return {
+      loc: path,
+      changefreq: config.changefreq,
+      priority: config.priority,
+      lastmod: config.autoLastmod ? new Date().toISOString() : undefined,
+      alternateRefs: buildNoIndex.alternateRefs(path, config),
+    };
+  },
+};
+```
+
+| the alternate | result |
+| --- | --- |
+| on `config.siteUrl`'s origin, its target exported and listable | kept |
+| on that origin, its target noindex, a redirect (with `excludeRedirects`) or not exported | dropped, one `console.error` naming the page and the target |
+| on another origin, or `config.siteUrl` absent | kept unverified |
+| not an absolute URL | dropped, one `console.error` |
+
+When nothing is left that points at a page other than `path` itself, the result is `[]`.
+A page with no exported file gets `[]` without a log; `shouldExclude` has reported it.
+Checking a target never calls `onExclude`.
+
+A target missing from the sitemap's own `<loc>` set makes the link non-reciprocal, and
+Google discards the whole cluster — hence the drop. next-sitemap's global `alternateRefs`
+option cannot do this: it appends the page path to every href, which breaks prefixed paths.
+
+`cache: true` makes the noindex check, the page's alternates and every target check share
+one read per file. Only the `<head>` is kept. Without it every call reads the disk, as
+in 2.3.
 
 ### `createSitemapNoIndex(options?)` — deprecated
 
@@ -531,12 +587,195 @@ interface ExportedPage {
   redirect: boolean;       // <meta http-equiv="refresh"> present
 }
 type BuildExcludeReason = "noindex" | "redirect";
+
+interface ExportedAlternate { hreflang: string; href: string }   // href with &amp; &quot; &#x27; &lt; &gt; decoded, once
+interface SitemapAlternateRef { href: string; hreflang: string; hrefIsAbsolute: true }
 ```
 
 Also exported: `SitemapNoIndexOptions`, `SitemapNoIndex`, `BuildNoIndexOptions`,
 `BuildNoIndex`, `SitemapTransformConfig`, `LlmsTxtOptions`, `PostFetchLike`,
-`DEFAULT_CONTENT_SIGNAL`, and the two pure pieces of the build reader,
-`inspectExportedHtml(html)` and `exportedFilesFor(path, outDir)`.
+`DEFAULT_CONTENT_SIGNAL`, and the three pure pieces of the build reader,
+`inspectExportedHtml(html)`, `inspectExportedAlternates(html)` and
+`exportedFilesFor(path, outDir)`.
+
+---
+
+## Entry `./localized` — metadata per locale, optional prefix
+
+### `createLocalizedSeo(config)`
+
+```ts
+createLocalizedSeo(config: LocalizedSeoConfig): LocalizedSeo
+```
+
+| `config` field | type | default | |
+| --- | --- | --- | --- |
+| `siteUrl` | `string` | — | site origin; trailing slash stripped |
+| `siteName` | `string` | — | as `createSeo` |
+| `canonicalPolicy` | `"passthrough" \| "strict-same-origin"` | `"passthrough"` | passed to every locale's `createSeo` |
+| `noIndexPolicy` | `"truthy" \| "strict"` | `"truthy"` | passed to every locale's `createSeo` |
+| `defaultLocale` | `string` | — | a key of `locales`; `x-default`, and the clamp target |
+| `locales` | `Record<string, SeoLocale>` | — | keyed by the CMS locale code (`"zh-CN"`, case-sensitive) |
+
+| `SeoLocale` field | type | default | |
+| --- | --- | --- | --- |
+| `prefix` | `string` | — | one URL segment; `""` for none. At most one locale may be unprefixed |
+| `ogLocale` | `string` | — | Open Graph locale |
+| `hreflang` | `readonly string[]` | — | the codes this locale is advertised under, in order |
+| `enabled` | `boolean` | `true` | computed by the site; the package reads no env var |
+
+One `createSeo` per locale, built with `locale: ogLocale` and the two policies. The title
+and description ladder is `createSeo`'s, so everything under [Page metadata](#page-metadata)
+holds for every locale.
+
+**Throws** on a config that cannot produce valid URLs: `defaultLocale` not in `locales`, a
+`prefix` that is not a string, two locales sharing a prefix, more than one unprefixed
+locale, a prefix containing `/`, an `hreflang` that is not an array of strings, an empty
+`hreflang` or a blank code in it, one hreflang code on two locales (compared
+case-insensitively), or an `ogLocale` that is not a non-blank string. `lib/siteConfig.js`
+is plain JavaScript, so these are checked at runtime.
+
+Other fields on a locale are ignored, so one object can feed this and
+`@prismetic/i18n-utils`:
+
+```js
+const LOCALES = {
+  defaultLocale: "en",
+  locales: {
+    en:      { prefix: "",   ogLocale: "en_US", hreflang: ["en"],          htmlLang: "en",    label: "EN" },
+    "zh-CN": { prefix: "cn", ogLocale: "zh_CN", hreflang: ["zh-CN", "zh"], htmlLang: "zh-CN", label: "中文", enabled: ZH_ENABLED },
+  },
+};
+
+const seo = createLocalizedSeo({ ...SEO_OPTIONS, ...LOCALES });
+```
+
+Returns `{ forLocale, localizedRoute, localizedUrl }`.
+
+### `seo.forLocale(locale)`
+
+```ts
+forLocale(locale: string): { generateSEOMetadata: LocalizedGenerateSEOMetadata }
+```
+
+A locale that is not a key of `locales` is **clamped to `defaultLocale` and logged** with
+`console.error`, never thrown, as in `./bilingual`. Keys are case-sensitive: `"zh-cn"` is
+unknown.
+
+### `generateSEOMetadata(seoData, route?, pageData?, options?)` — localized
+
+```ts
+type LocalizedGenerateSEOMetadata = (
+  seoData: CmsSeo | null | undefined,
+  route?: string | null,
+  pageData?: CmsPageData,
+  options?: { alternates?: Record<string, string | null | undefined> },
+) => LocalizedSeoMetadata;
+```
+
+| param | |
+| --- | --- |
+| `seoData`, `pageData` | as the main entry |
+| `route` | the path below the locale prefix: `"articles/x"`, `""` for the home |
+| `options.alternates` | locale key → the route of the same document in that locale. Leave a locale out, or pass `null`, when it has no published counterpart |
+
+Returns `createSeo`'s result for `localizedRoute(route, locale)`, plus
+`alternates.languages` when there is hreflang to emit:
+
+- only when the current locale is enabled and another enabled locale has a string entry in
+  `alternates` (`""` is a home). Otherwise the key is absent and the result is
+  `createSeo`'s, key for key;
+- in config order: the current locale and its enabled counterparts, each with its
+  `hreflang` codes in order, then `x-default` → the default locale's URL when the default
+  locale is among them;
+- every URL ends in `/`; an unprefixed home is the bare `siteUrl + "/"`.
+
+No `openGraph.alternateLocale`.
+
+```ts
+const { generateSEOMetadata } = seo.forLocale("zh-CN");
+
+generateSEOMetadata(article.seo, `articles/${article.Slug}`, article, {
+  alternates: alternatesFromLocalizations(article.localizations, (l) => `articles/${l.Slug}`),
+});
+// canonical  https://mosbuildexpo.com/cn/articles/b/
+// languages  en → /articles/a/, zh-CN → /cn/articles/b/, zh → /cn/articles/b/, x-default → /articles/a/
+```
+
+**The canonical guard** runs first, on a CMS `canonicalURL` that parses as an absolute URL
+on the site's own host. Anything else — blank, relative, malformed, off-site — reaches
+`createSeo` untouched, and `canonicalPolicy` decides.
+
+The URL's first path segment names its locale: the one whose prefix equals the whole
+segment (`/cnc-machines/` is not `/cn/`), otherwise the unprefixed locale. A disabled
+locale's prefix still counts. The canonical is ignored when it belongs to another locale —
+a zh page claiming an English URL, or an English page claiming a `/cn/` one; Strapi's
+"Fill in from another locale" copies the English canonical into the translation — or, on a
+prefixed locale, when a sub-page claims that locale's home (`/cn/`, `/en/`). An ignored
+canonical gives way to the computed per-locale one and is logged once with
+`console.error`, naming the value and the page's path. An accepted one is passed on as is.
+
+On the unprefixed locale the site root stays `createSeo`'s job, exactly as on the main
+entry, so an English page that claims no `/cn/` URL renders and logs what `createSeo`
+alone would.
+
+### `seo.localizedRoute(route, locale)` / `seo.localizedUrl(route, locale)`
+
+```ts
+seo.localizedRoute("articles/x", "zh-CN"); // "cn/articles/x"
+seo.localizedUrl("articles/x", "zh-CN");   // "https://mosbuildexpo.com/cn/articles/x/"
+seo.localizedUrl("", "en");                // "https://mosbuildexpo.com/"
+```
+
+A route is trimmed and loses its wrapping slashes. On a prefixed locale one leading segment
+equal to the prefix is dropped, so `"cn/about"`, `"/cn/about/"` and `"about"` are the same
+zh route; on an unprefixed locale nothing more is stripped. The same cleaning applies to
+`route` and to each `options.alternates` value, with that value's own locale. An unknown
+locale is clamped and logged as in `forLocale`.
+
+### `alternatesFromLocalizations(localizations, toRoute)`
+
+```ts
+alternatesFromLocalizations<T extends { locale: string; publishedAt?: string | null }>(
+  localizations: readonly T[] | null | undefined,
+  toRoute: (localization: T) => string,
+): Record<string, string>
+```
+
+Turns Strapi's `localizations { locale publishedAt … }` into `options.alternates`, pairing
+documents by Strapi's own link rather than by assuming equal slugs. A row without
+`publishedAt` is skipped, so query it: leave it out and every row is skipped. `""` is kept;
+`null` gives `{}`.
+
+### Types
+
+```ts
+interface SeoLocale {
+  prefix: string;
+  ogLocale: string;
+  hreflang: readonly string[];
+  enabled?: boolean;
+}
+
+interface LocalizedSeoConfig {
+  siteUrl: string;
+  siteName: string;
+  canonicalPolicy?: "passthrough" | "strict-same-origin";
+  noIndexPolicy?: "truthy" | "strict";
+  defaultLocale: string;
+  locales: Record<string, SeoLocale>;
+}
+
+interface LocalizedSeoMetadata extends Omit<SeoMetadata, "alternates"> {
+  alternates: { canonical: string; languages?: Record<string, string> };
+}
+```
+
+Also exported: `LocalizedSeo`, `LocalizedGenerateSEOMetadata`, `LocalizedMetadataOptions`.
+
+For the sitemap, `alternateRefs` on
+[`createSitemapNoIndexFromBuild`](#createsitemapnoindexfrombuildoptions) copies each page's
+hreflang links from its exported HTML.
 
 ---
 
@@ -1019,9 +1258,10 @@ Pure functions with no CMS assumptions at all. Import and use them anywhere:
 
 ## Works on any Strapi project
 
-`createSeo` and `createBilingualSeo` read `metaTitle`, `metaDescription`, `keywords`,
-`noIndex`, `canonicalURL` and `metaImage` — the **Strapi SEO plugin's** field names, not
-an ITE invention. Any Strapi site using that plugin fits without modification.
+`createSeo`, `createLocalizedSeo` and `createBilingualSeo` read `metaTitle`,
+`metaDescription`, `keywords`, `noIndex`, `canonicalURL` and `metaImage` — the **Strapi
+SEO plugin's** field names, not an ITE invention. Any Strapi site using that plugin fits
+without modification.
 
 `createLocaleSitemapNoIndex` takes a plain `apiBase` and your own uids and works against
 Strapi v4 or v5 via `shape` — but **only for a site whose URLs carry a locale segment.**
@@ -1124,6 +1364,13 @@ the natural next step if more than one non-ITE project needs it.
 - **Requires Node 20.19+ / 22.12+** when loaded from a CommonJS config.
 - **An empty `{}` SEO component counts as a page having its own**, so it inherits nothing.
 
+# Upgrading to 2.4
+
+**Additive. No output changes.** A new entry, `./localized`. On `./sitemap`,
+`createSitemapNoIndexFromBuild` gains `alternateRefs` and an opt-in `cache`; a config that
+uses neither reads and logs exactly as in 2.3. `.`, `./bilingual` and `./bilingual/sitemap`
+are unchanged.
+
 # Upgrading to 2.3
 
 **Additive. No output changes.** One new export on `./sitemap`,
@@ -1202,7 +1449,7 @@ with no SEO record of its own now renders no JSON-LD rather than the homepage's.
 # Development
 
 ```bash
-npm test -w seo-utils      # vitest — 280 tests across 11 files
+npm test -w seo-utils      # vitest — 430 tests across 14 files
 npm run build -w seo-utils
 ```
 

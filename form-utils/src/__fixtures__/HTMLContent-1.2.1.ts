@@ -1,6 +1,5 @@
 "use client";
 import { createElement, useEffect, useRef } from "react";
-import { isActiveCampaignSimpleEmbed, rewriteRecaptchaHost } from "./recaptcha.js";
 
 // thats the original code from dangerously-set-html-content package but slightly modified to work with react 19+ and next.js 15+
 
@@ -8,25 +7,16 @@ export interface HTMLContentProps {
   html: string;
   allowRerender?: boolean;
   className?: string;
-  recaptchaHost?: string;
   [key: string]: any;
 }
 
 export function HTMLContent({
   html,
   allowRerender = false,
-  recaptchaHost,
   ...rest
 }: HTMLContentProps) {
   const divRef = useRef<HTMLDivElement>(null);
   const isFirstRender = useRef(true);
-
-  if (typeof window === "undefined" && recaptchaHost && isActiveCampaignSimpleEmbed(html)) {
-    const form = rest.id == null ? "A form" : `Form ${JSON.stringify(rest.id)}`;
-    console.error(
-      `[form] ${form} is an ActiveCampaign simple embed (embed.php): its reCAPTCHA host cannot be switched to ${recaptchaHost}. Use the full embed code.`,
-    );
-  }
 
   useEffect(() => {
     if (!html || !divRef.current) {
@@ -40,16 +30,14 @@ export function HTMLContent({
     isFirstRender.current = false;
 
     // Create a 'tiny' document and parse the html string
-    const slotHtml = document
-      .createRange()
-      .createContextualFragment(recaptchaHost ? rewriteRecaptchaHost(html, recaptchaHost) : html);
+    const slotHtml = document.createRange().createContextualFragment(html);
 
     // Clear the container
     divRef.current.innerHTML = "";
 
     // Append the new content
     divRef.current.appendChild(slotHtml);
-  }, [html, allowRerender, recaptchaHost]);
+  }, [html, allowRerender]);
 
   return createElement("div", { ...rest, ref: divRef });
 }

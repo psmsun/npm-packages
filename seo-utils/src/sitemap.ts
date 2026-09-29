@@ -24,9 +24,12 @@ export {
   type BuildNoIndex,
   type BuildNoIndexOptions,
   createSitemapNoIndexFromBuild,
+  type ExportedAlternate,
   type ExportedPage,
   exportedFilesFor,
+  inspectExportedAlternates,
   inspectExportedHtml,
+  type SitemapAlternateRef,
   type SitemapTransformConfig,
 } from "./buildNoIndex.js";
 

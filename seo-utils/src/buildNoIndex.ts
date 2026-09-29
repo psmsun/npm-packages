@@ -25,6 +25,17 @@ export interface ExportedPage {
   redirect: boolean;
 }
 
+export interface ExportedAlternate {
+  hreflang: string;
+  href: string;
+}
+
+export interface SitemapAlternateRef {
+  href: string;
+  hreflang: string;
+  hrefIsAbsolute: true;
+}
+
 export interface BuildNoIndexOptions {
   /** Export directory. Defaults to the transform's `config.outDir`, then "out". */
   outDir?: string;
@@ -34,10 +45,12 @@ export interface BuildNoIndexOptions {
   readFile?: (file: string) => string | null;
   /** Called once per excluded path. Defaults to one console.log line. */
   onExclude?: (path: string, reason: BuildExcludeReason) => void;
+  cache?: boolean;
 }
 
 export interface SitemapTransformConfig {
   outDir?: string | null;
+  siteUrl?: string | null;
 }
 
 export interface BuildNoIndex {
@@ -45,9 +58,18 @@ export interface BuildNoIndex {
   inspect(path: string, config?: SitemapTransformConfig): ExportedPage | null;
   /** True when the exported page must stay out of the sitemap. */
   shouldExclude(path: string, config?: SitemapTransformConfig): boolean;
+  alternateRefs(path: string, config?: SitemapTransformConfig): SitemapAlternateRef[];
 }
 
 const META_TAG = /<meta\b[^>]*>/gi;
+const LINK_TAG = /<link\b[^>]*>/gi;
+const ATTRIBUTE_ESCAPES: Record<string, string> = {
+  "&amp;": "&",
+  "&quot;": '"',
+  "&#x27;": "'",
+  "&lt;": "<",
+  "&gt;": ">",
+};
 
 function attr(tag: string, name: string): string | null {
   const m = new RegExp(
@@ -57,10 +79,14 @@ function attr(tag: string, name: string): string | null {
   return m ? (m[1] ?? m[2] ?? m[3] ?? "") : null;
 }
 
+function headOf(html: string): string {
+  const headEnd = html.search(/<\/head\s*>/i);
+  return headEnd === -1 ? html : html.slice(0, headEnd);
+}
+
 /** What one exported HTML document says about itself. Only the `<head>` is read. */
 export function inspectExportedHtml(html: string): ExportedPage {
-  const headEnd = html.search(/<\/head\s*>/i);
-  const head = headEnd === -1 ? html : html.slice(0, headEnd);
+  const head = headOf(html);
   let robots: string | null = null;
   let noIndex = false;
   let redirect = false;
@@ -77,6 +103,23 @@ export function inspectExportedHtml(html: string): ExportedPage {
     if (equiv !== null && equiv.trim().toLowerCase() === "refresh") redirect = true;
   }
   return { robots, noIndex, redirect };
+}
+
+export function inspectExportedAlternates(html: string): ExportedAlternate[] {
+  const alternates: ExportedAlternate[] = [];
+  for (const tag of headOf(html).match(LINK_TAG) ?? []) {
+    const rel = attr(tag, "rel");
+    if (rel === null || !rel.toLowerCase().split(/\s+/).includes("alternate")) continue;
+    const hreflang = attr(tag, "hreflang");
+    const href = attr(tag, "href");
+    if (hreflang && href) {
+      alternates.push({
+        hreflang,
+        href: href.replace(/&(?:amp|quot|#x27|lt|gt);/g, (escape) => ATTRIBUTE_ESCAPES[escape]),
+      });
+    }
+  }
+  return alternates;
 }
 
 /**
@@ -102,6 +145,23 @@ export function exportedFilesFor(path: string, outDir: string): string[] {
   return out;
 }
 
+function pathKey(path: string): string {
+  const raw = String(path).split(/[?#]/)[0].trim().replace(/^\/+|\/+$/g, "");
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
+}
+
+function parseUrl(href: string): URL | null {
+  try {
+    return new URL(href);
+  } catch {
+    return null;
+  }
+}
+
 function readExported(file: string): string | null {
   try {
     return readFileSync(file, "utf8");
@@ -117,7 +177,18 @@ export function createSitemapNoIndexFromBuild(
   options: BuildNoIndexOptions = {},
 ): BuildNoIndex {
   const excludeRedirects = options.excludeRedirects ?? true;
-  const read = options.readFile ?? readExported;
+  const readFile = options.readFile ?? readExported;
+  const heads = new Map<string, string | null>();
+  // Only the <head> is ever parsed, so the cache keeps that rather than the whole export.
+  const read = options.cache
+    ? (file: string): string | null => {
+        if (!heads.has(file)) {
+          const html = readFile(file);
+          heads.set(file, html === null ? null : headOf(html));
+        }
+        return heads.get(file) ?? null;
+      }
+    : readFile;
   const onExclude =
     options.onExclude ??
     ((path: string, reason: BuildExcludeReason) =>
@@ -127,12 +198,21 @@ export function createSitemapNoIndexFromBuild(
     return options.outDir ?? (config?.outDir || "out");
   }
 
-  function inspect(path: string, config?: SitemapTransformConfig): ExportedPage | null {
+  function exported(
+    path: string,
+    config?: SitemapTransformConfig,
+  ): { files: string[]; html: string | null } {
     const files = exportedFilesFor(path, outDirFor(config));
     for (const file of files) {
       const html = read(file);
-      if (html !== null) return inspectExportedHtml(html);
+      if (html !== null) return { files, html };
     }
+    return { files, html: null };
+  }
+
+  function inspect(path: string, config?: SitemapTransformConfig): ExportedPage | null {
+    const { files, html } = exported(path, config);
+    if (html !== null) return inspectExportedHtml(html);
     // Fail open: a page the sitemap cannot see is still a page. Say so.
     console.error(
       `[sitemap] No exported file for ${JSON.stringify(path)} (looked for ${files.join(", ")}); keeping it in the sitemap.`,
@@ -140,18 +220,56 @@ export function createSitemapNoIndexFromBuild(
     return null;
   }
 
-  function shouldExclude(path: string, config?: SitemapTransformConfig): boolean {
-    const page = inspect(path, config);
-    if (!page) return false;
-    const reason: BuildExcludeReason | null = page.noIndex
+  function excludeReason(page: ExportedPage): BuildExcludeReason | null {
+    return page.noIndex
       ? "noindex"
       : excludeRedirects && page.redirect
         ? "redirect"
         : null;
+  }
+
+  function shouldExclude(path: string, config?: SitemapTransformConfig): boolean {
+    const page = inspect(path, config);
+    if (!page) return false;
+    const reason = excludeReason(page);
     if (!reason) return false;
     onExclude(path, reason);
     return true;
   }
 
-  return { inspect, shouldExclude };
+  function targetProblem(pathname: string, config?: SitemapTransformConfig): string | null {
+    const { html } = exported(pathname, config);
+    if (html === null) return "has no exported file";
+    const reason = excludeReason(inspectExportedHtml(html));
+    return reason === "noindex" ? "is noindex" : reason === "redirect" ? "is a redirect" : null;
+  }
+
+  function alternateRefs(path: string, config?: SitemapTransformConfig): SitemapAlternateRef[] {
+    const { html } = exported(path, config);
+    if (html === null) return [];
+    const origin = config?.siteUrl ? (parseUrl(config.siteUrl)?.origin ?? null) : null;
+
+    // An alternate missing from the sitemap's own <loc> set is non-reciprocal, and Google drops the cluster.
+    const kept = inspectExportedAlternates(html).filter(({ hreflang, href }) => {
+      const target = parseUrl(href);
+      if (target && (!origin || target.origin !== origin)) return true;
+      const problem = target ? targetProblem(target.pathname, config) : "is not an absolute URL";
+      if (!problem) return true;
+      console.error(
+        `[sitemap] Dropping hreflang ${JSON.stringify(hreflang)} alternate ${href} from ${JSON.stringify(path)}; the target ${problem}.`,
+      );
+      return false;
+    });
+
+    const self = pathKey(path);
+    const pointsElsewhere = kept.some(({ href }) => {
+      const target = new URL(href);
+      return (origin !== null && target.origin !== origin) || pathKey(target.pathname) !== self;
+    });
+    return pointsElsewhere
+      ? kept.map(({ hreflang, href }) => ({ href, hreflang, hrefIsAbsolute: true }))
+      : [];
+  }
+
+  return { inspect, shouldExclude, alternateRefs };
 }

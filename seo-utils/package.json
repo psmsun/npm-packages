@@ -1,6 +1,6 @@
 {
   "name": "@prismetic/seo-utils",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "description": "Next.js metadata, JSON-LD and sitemap noIndex helpers for Strapi-backed sites — React 19 / Next 16",
   "type": "module",
   "main": "dist/index.js",
@@ -21,6 +21,10 @@
     "./bilingual/sitemap": {
       "types": "./dist/bilingualSitemap.d.ts",
       "default": "./dist/bilingualSitemap.js"
+    },
+    "./localized": {
+      "types": "./dist/localized.d.ts",
+      "default": "./dist/localized.js"
     }
   },
   "files": [
