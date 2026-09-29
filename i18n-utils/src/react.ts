@@ -19,6 +19,7 @@ export interface LocaleSwitchOptions {
   hreflang: string;
   fallback: string;
   pathname?: string | null;
+  lang?: string;
 }
 
 export interface LocaleSwitchLinkProps {
@@ -81,7 +82,7 @@ function alternatePath(hreflang: string, fallback: string): string {
   }
 }
 
-export function useLocaleSwitch({ hreflang, fallback, pathname }: LocaleSwitchOptions): LocaleSwitch {
+export function useLocaleSwitch({ hreflang, fallback, pathname, lang }: LocaleSwitchOptions): LocaleSwitch {
   const [href, setHref] = useState(fallback);
 
   useEffect(() => {
@@ -100,7 +101,7 @@ export function useLocaleSwitch({ hreflang, fallback, pathname }: LocaleSwitchOp
     linkProps: {
       href,
       hrefLang: hreflang,
-      lang: hreflang,
+      lang: lang ?? hreflang,
       onPointerDown: refresh,
       onFocus: refresh,
       onClick: refresh,

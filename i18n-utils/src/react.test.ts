@@ -198,3 +198,34 @@ describe("useLocaleSwitch", () => {
     });
   });
 });
+
+describe("useLocaleSwitch lang", () => {
+  function Switch(props: LocaleSwitchOptions) {
+    return createElement("a", useLocaleSwitch(props).linkProps, "中文");
+  }
+
+  const anchor = () => container.querySelector("a")!;
+
+  it("sets the link's lang from lang and keeps hreflang for hrefLang", () => {
+    setAlternate("zh-CN", "https://mosbuildexpo.com/cn/articles/b/");
+    render(createElement(Switch, { hreflang: "zh-CN", fallback: "/cn/", pathname: "/articles/a/", lang: "zh-Hans" }));
+    expect(anchor().getAttribute("lang")).toBe("zh-Hans");
+    expect(anchor().getAttribute("hreflang")).toBe("zh-CN");
+    expect(anchor().getAttribute("href")).toBe("/cn/articles/b/");
+  });
+
+  it.each([
+    ["left out", {}],
+    ["undefined", { lang: undefined }],
+  ])("returns the 0.1.0 link props when lang is %s", (_, extra) => {
+    const results: ReturnType<typeof useLocaleSwitch>[] = [];
+    function Spy() {
+      results.push(useLocaleSwitch({ hreflang: "zh-CN", fallback: "/cn/", pathname: "/articles/a/", ...extra }));
+      return null;
+    }
+    render(createElement(Spy));
+    const { linkProps } = results.at(-1)!;
+    expect(Object.keys(linkProps)).toEqual(["href", "hrefLang", "lang", "onPointerDown", "onFocus", "onClick"]);
+    expect(linkProps).toMatchObject({ href: "/cn/", hrefLang: "zh-CN", lang: "zh-CN" });
+  });
+});

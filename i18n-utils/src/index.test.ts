@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { INVALID_LOCALE_CONFIGS, type LocaleConfigCase, VALID_LOCALE_CONFIGS } from "../../test-fixtures/localeConfigCases.js";
 import {
   defineDictionaries,
   defineLocales,
@@ -271,5 +272,29 @@ describe("defineDictionaries", () => {
     const getDictionary = defineDictionaries({ en, "zh-CN": zh });
     expect(getDictionary("en")).toBe(en);
     expect(getDictionary("zh-CN")).toBe(zh);
+  });
+});
+
+describe("the shared locale config cases", () => {
+  const define = ({ defaultLocale, locales }: LocaleConfigCase) => () =>
+    defineLocales({ defaultLocale, locales } as unknown as LocalesConfig);
+
+  const thrownMessage = (run: () => unknown): string => {
+    try {
+      run();
+    } catch (error) {
+      return (error as Error).message;
+    }
+    return "nothing was thrown";
+  };
+
+  it.each(INVALID_LOCALE_CONFIGS)("throws on $name", (entry) => {
+    const message = thrownMessage(define(entry));
+    expect(message).toMatch(/^\[i18n\] /);
+    expect(message.slice("[i18n] ".length)).toMatch(entry.message);
+  });
+
+  it.each(VALID_LOCALE_CONFIGS)("accepts $name", (entry) => {
+    expect(define(entry)).not.toThrow();
   });
 });

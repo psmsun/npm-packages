@@ -30,6 +30,7 @@ Two entries:
 | Dependencies | none |
 | Next.js | not a peer dep, never imported. The site passes `usePathname()` in |
 | Module format | ESM. `require()` works from CommonJS through Node's `require(esm)` (Node 20.19+ / 22.12+) |
+| Side effects | none at import; `package.json` declares `"sideEffects": false` |
 | Tested against | React 19 / Next 16 |
 
 ## The config
@@ -122,13 +123,20 @@ export const getDictionary = defineDictionaries({ en, "zh-CN": zhCN });
 ```tsx
 // components/LocaleProvider.tsx
 "use client";
-import { useLocale as usePackageLocale } from "@prismetic/i18n-utils/react";
+import { PathLocaleProvider, useLocale as usePackageLocale } from "@prismetic/i18n-utils/react";
+import type { ReactNode } from "react";
 import type { Locale } from "@/lib/i18n/config";
 import { getDictionary } from "@/lib/i18n/getDictionary";
+import { LOCALES } from "@/lib/i18n/locales";
 
-export { LocaleProvider, PathLocaleProvider } from "@prismetic/i18n-utils/react";
+export { LocaleProvider } from "@prismetic/i18n-utils/react";
 export const useLocale = (): Locale => usePackageLocale<Locale>() || "en";
 export const useDictionary = () => getDictionary(useLocale());
+
+// Imports LOCALES itself, so the config ships in the JS chunk and not in the HTML.
+export const NotFoundLocaleProvider = ({ children }: { children: ReactNode }) => (
+  <PathLocaleProvider config={LOCALES}>{children}</PathLocaleProvider>
+);
 ```
 
 ```tsx
@@ -140,29 +148,41 @@ export const useDictionary = () => getDictionary(useLocale());
 </html>
 
 // app/global-not-found.tsx — one static 404.html serves every locale
-<PathLocaleProvider config={LOCALES}>{/* … */}</PathLocaleProvider>
+<NotFoundLocaleProvider>{/* … */}</NotFoundLocaleProvider>
 ```
+
+A config passed as a prop from a server component, as in `<PathLocaleProvider config={LOCALES}>`
+inside `global-not-found.tsx`, is inlined into the page's HTML, disabled locales included.
+Imported inside a client component, it ships in the JS chunk only.
 
 ```tsx
 // components/LocaleSwitch.tsx — markup and styling stay in the site
 "use client";
+import { localizePath } from "@prismetic/i18n-utils";
 import { useLocaleSwitch } from "@prismetic/i18n-utils/react";
 import { usePathname } from "next/navigation";
-import { type Locale, LOCALES, locales } from "@/lib/i18n/config";
+import type { Locale } from "@/lib/i18n/config";
+import { LOCALES } from "@/lib/i18n/locales";
 
 const LocaleSwitch = ({ target }: { target: Locale }) => {
   const { linkProps } = useLocaleSwitch({
     hreflang: target,
-    fallback: locales.localizePath("/", target),
+    fallback: localizePath(LOCALES, "/", target),
     pathname: usePathname(),
   });
   return <a {...linkProps} className="…">{LOCALES.locales[target].label}</a>;
 };
 ```
 
+Client components import the plain `LOCALES` and use the standalone functions; only
+server and Node code imports `lib/i18n/config`, which calls `defineLocales`.
+
 ```ts
 // utils/api — English requests stay byte-identical
-fetchGraphQL(ARTICLE_QUERY, locales.withLocale({ slug }, locale));
+import { withLocale } from "@prismetic/i18n-utils";
+import { LOCALES } from "@/lib/i18n/locales";
+
+fetchGraphQL(ARTICLE_QUERY, withLocale(LOCALES, { slug }, locale));
 ```
 
 ---
@@ -171,9 +191,9 @@ fetchGraphQL(ARTICLE_QUERY, locales.withLocale({ slug }, locale));
 
 ### Entry `.`
 
-Every standalone function takes the plain config first. That config is serialisable, so a
-server component can hand it to a client component; `defineLocales` is the bound
-convenience for server and Node code.
+Every standalone function takes the plain config first. That config is plain data, so a
+client component can import it and call these functions directly; `defineLocales` is the
+bound convenience for server and Node code.
 
 #### `defineLocales(config)`
 
@@ -185,9 +205,15 @@ Validates the config and returns it with every function below bound to it. The r
 is still a `LocalesConfig<L>`, so server and Node code can pass it wherever a config is
 expected.
 
-**Pass the plain config object (`LOCALES`) to a client component, never the
-`defineLocales` result.** The result carries functions, and Next refuses to pass
-functions from a server component to a client component.
+**Never pass the `defineLocales` result to a client component.** The result carries
+functions, and Next refuses to pass functions from a server component to a client
+component. A client component imports the plain config object (`LOCALES`) itself: passed
+as a prop from a server component, a config is inlined into the HTML; imported inside a
+client component, it ships in the JS chunk only.
+
+`"sideEffects": false` does not remove `validate()` from a client bundle when a module
+imported by client code calls `defineLocales`. To keep it out, call `defineLocales` in
+server or Node code and use the standalone functions with the plain config in client code.
 
 **Throws** on `defaultLocale` not in `locales`, a `prefix` that is not a string, two
 locales sharing a prefix, more than one unprefixed locale, a prefix containing `/`, an
@@ -247,6 +273,11 @@ type DictionaryShape<T>   // T with every string literal widened to string, deep
 array shapes and function signatures while its strings differ. A missing key, an extra
 key or a non-string value is a type error.
 
+`DictionaryShape` widens every string literal to `string`, so a union such as
+`"newest" | "oldest" | "title"` becomes `string`. It is for translatable text. Values that
+are not translated, such as ids and enum-like values, belong outside the dictionary or need
+their own type.
+
 #### Types
 
 ```ts
@@ -290,18 +321,24 @@ known in the browser. It provides `defaultLocale` until mount, then reads
 `window.location.pathname` with `localeFromPath`, sets `<html lang>` with `htmlLangOf`
 and provides that locale.
 
-Pass the plain config object (`LOCALES`) as `config`, never the `defineLocales` result:
-that result carries functions, and Next refuses to pass functions from a server component
-to a client component.
+Render it from a client component in the site that imports `LOCALES` itself, as
+`NotFoundLocaleProvider` does in the example above. A config passed as a prop from a
+server component is inlined into the HTML; imported inside a client component, it ships in
+the JS chunk only. Never pass the `defineLocales` result as `config`: it carries functions,
+and Next refuses to pass functions from a server component to a client component.
 
 #### `useLocaleSwitch(options)`
 
 ```ts
-useLocaleSwitch(options: { hreflang: string; fallback: string; pathname?: string | null }): {
+useLocaleSwitch(options: { hreflang: string; fallback: string; pathname?: string | null; lang?: string }): {
   href: string;
   linkProps: { href; hrefLang; lang; onPointerDown; onFocus; onClick };
 }
 ```
+
+`linkProps.hrefLang` is always `hreflang`. `linkProps.lang`, the language of the link's
+text, is `lang` when given and `hreflang` otherwise, as in 0.1; pass `lang` when they
+differ, for example `htmlLangOf(LOCALES, target)`.
 
 Points the switcher at the same document in the other locale by reading the page's own
 `<link rel="alternate" hreflang="…">`, which already carries the pairing — no site-wide
@@ -327,16 +364,27 @@ Also exported: `LocaleSwitch`, `LocaleSwitchOptions`, `LocaleSwitchLinkProps`.
   including every page while a locale is disabled, gets `fallback`.
 - **`PathLocaleProvider` renders the default locale first.** The 404 page's text switches
   after hydration.
-- **Client components get the plain `LOCALES` object, not the `defineLocales` result.**
-  The result carries functions, which Next will not pass from a server component to a
-  client component.
+- **Client components import the plain `LOCALES` object themselves.** Passed as a prop
+  from a server component, a config is inlined into the HTML; imported inside a client
+  component, it ships in the JS chunk only. Never pass the `defineLocales` result: it
+  carries functions, which Next will not pass from a server component to a client
+  component.
+
+## Upgrading to 0.2
+
+No code change is needed, and nothing changes unless a site passes the new `lang` option
+to `useLocaleSwitch`. `package.json` now declares `"sideEffects": false`. The README now
+renders `PathLocaleProvider` from a client component that imports `LOCALES` itself, which
+keeps the config out of the HTML.
 
 ## Development
 
 ```bash
-npm test -w i18n-utils        # vitest — 88 tests across 3 files, type tests included
+npm test -w i18n-utils        # vitest — 113 tests across 3 files, type tests included
 npm run build -w i18n-utils
 ```
 
 `dictionary.test-d.ts` is checked by `tsc` through `tsconfig.typecheck.json`; an unused
-`@ts-expect-error` fails the run. `react.test.ts` runs in happy-dom.
+`@ts-expect-error` fails the run. `react.test.ts` runs in happy-dom. The invalid and valid
+locale configs in `test-fixtures/localeConfigCases.ts`, at the repo root, run in this
+package and in seo-utils, so the two `validate()` copies cannot drift.
