@@ -10,6 +10,7 @@ Monorepo for Prismetic's published npm packages. Managed with [npm workspaces](h
 | [`@prismetic/form-utils`](./form-utils) | NeverBounce email gating for embedded ActiveCampaign forms — React 19 / Next 16 |
 | [`@prismetic/i18n-utils`](./i18n-utils) | Locale config, locale-aware paths and a React locale provider for sites with more than one locale — React 18+ / Next 16 |
 | [`@prismetic/link-utils`](./link-utils) | CMS href normalisation — bare domains, external targets, static-file prefetch |
+| [`@prismetic/next-preview-core`](./next-preview-core) | Hybrid static/preview architecture for Next.js + Strapi — React Query provider and live-preview HOC — React 18+ / TanStack Query 5 |
 | [`@prismetic/seo-utils`](./seo-utils) | Next.js metadata, JSON-LD and sitemap noIndex helpers for Strapi-backed sites — React 19 / Next 16 |
 | [`@prismetic/text-utils`](./text-utils) | Render `[label](url)` links in plain-text CMS fields; demote rich-text `<h1>`s — React 19 / Next 16 |
 | [`@prismetic/video-utils`](./video-utils) | YouTube and VK video ID extraction utilities |

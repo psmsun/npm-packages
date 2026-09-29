@@ -1,0 +1,59 @@
+{
+  "name": "@prismetic/next-preview-core",
+  "version": "1.1.0",
+  "description": "Hybrid static/preview architecture for Next.js + Strapi projects",
+  "author": "Prismetic Group FZ LLC",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/psmsun/npm-packages.git",
+    "directory": "next-preview-core"
+  },
+  "homepage": "https://github.com/psmsun/npm-packages/tree/main/next-preview-core#readme",
+  "bugs": {
+    "url": "https://github.com/psmsun/npm-packages/issues"
+  },
+  "keywords": [
+    "next.js",
+    "strapi",
+    "preview",
+    "static"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run --typecheck --typecheck.tsconfig tsconfig.typecheck.json",
+    "prepublishOnly": "npm test && tsup"
+  },
+  "license": "MIT",
+  "peerDependencies": {
+    "@tanstack/react-query": ">=5",
+    "react": ">=18"
+  },
+  "devDependencies": {
+    "@tanstack/react-query": "^5.104.0",
+    "@types/node": "^25.3.0",
+    "@types/react": "^19.2.14",
+    "happy-dom": "20.14.5",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "tsup": "^8.5.1",
+    "typescript": "^6.0.3",
+    "vitest": "^3.2.4"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

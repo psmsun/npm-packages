@@ -8,6 +8,7 @@
     "form-utils",
     "i18n-utils",
     "link-utils",
+    "next-preview-core",
     "seo-utils",
     "text-utils",
     "video-utils"
