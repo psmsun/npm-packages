@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { INVALID_LOCALE_CONFIGS, type LocaleConfigCase, VALID_LOCALE_CONFIGS } from "../../test-fixtures/localeConfigCases.js";
 import {
   alternatesFromLocalizations,
   createLocalizedSeo,
@@ -604,5 +605,29 @@ describe("alternatesFromLocalizations", () => {
       .forLocale("zh-CN")
       .generateSEOMetadata(null, "articles/b", undefined, { alternates });
     expect(md.alternates.languages?.en).toBe("https://mosbuildexpo.com/articles/a/");
+  });
+});
+
+describe("the shared locale config cases", () => {
+  const create = ({ defaultLocale, locales }: LocaleConfigCase) => () =>
+    createLocalizedSeo({ ...SITE, defaultLocale, locales } as unknown as LocalizedSeoConfig);
+
+  const thrownMessage = (run: () => unknown): string => {
+    try {
+      run();
+    } catch (error) {
+      return (error as Error).message;
+    }
+    return "nothing was thrown";
+  };
+
+  it.each(INVALID_LOCALE_CONFIGS)("throws on $name", (entry) => {
+    const message = thrownMessage(create(entry));
+    expect(message).toMatch(/^\[seo\] /);
+    expect(message.slice("[seo] ".length)).toMatch(entry.message);
+  });
+
+  it.each(VALID_LOCALE_CONFIGS)("accepts $name", (entry) => {
+    expect(create(entry)).not.toThrow();
   });
 });

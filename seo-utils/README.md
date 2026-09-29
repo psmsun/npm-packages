@@ -736,7 +736,7 @@ locale is clamped and logged as in `forLocale`.
 ### `alternatesFromLocalizations(localizations, toRoute)`
 
 ```ts
-alternatesFromLocalizations<T extends { locale: string; publishedAt?: string | null }>(
+alternatesFromLocalizations<T extends { locale: string; publishedAt?: string | null; [field: string]: any }>(
   localizations: readonly T[] | null | undefined,
   toRoute: (localization: T) => string,
 ): Record<string, string>
@@ -746,6 +746,9 @@ Turns Strapi's `localizations { locale publishedAt … }` into `options.alternat
 documents by Strapi's own link rather than by assuming equal slugs. A row without
 `publishedAt` is skipped, so query it: leave it out and every row is skipped. `""` is kept;
 `null` gives `{}`.
+
+Untyped CMS data (`any`) can read any field in `toRoute`, such as `l.Slug`. A typed array
+still rejects a field its rows do not have.
 
 ### Types
 
@@ -1364,6 +1367,13 @@ the natural next step if more than one non-ITE project needs it.
 - **Requires Node 20.19+ / 22.12+** when loaded from a CommonJS config.
 - **An empty `{}` SEO component counts as a page having its own**, so it inherits nothing.
 
+# Upgrading to 2.4.1
+
+**Types and package metadata only. No output changes;** every `dist/*.js` file is
+byte-identical to 2.4.0. `alternatesFromLocalizations` accepts untyped (`any`) data and lets
+`toRoute` read any field on it, where 2.4.0 rejected `l.Slug`. `package.json` declares
+`"sideEffects": false`; no module in `dist/` runs code at import.
+
 # Upgrading to 2.4
 
 **Additive. No output changes.** A new entry, `./localized`. On `./sitemap`,
@@ -1449,14 +1459,17 @@ with no SEO record of its own now renders no JSON-LD rather than the homepage's.
 # Development
 
 ```bash
-npm test -w seo-utils      # vitest — 430 tests across 14 files
+npm test -w seo-utils      # vitest — 458 tests across 15 files, type tests included
 npm run build -w seo-utils
 ```
 
 `src/__fixtures__` holds byte-identical copies of the two legacy `lib/seo.js` variants and
 of Mosbuild's `lib/generateLlmsTxt.js`; the tests prove the package reproduces them.
 `redsea.golden.test.ts` replays 1,080 cases captured from four live bilingual sites, and
-`mainEntryUnchanged.test.ts` pins the main entry against 2.0.
+`mainEntryUnchanged.test.ts` pins the main entry against 2.0. `localized.test-d.ts` is
+checked by `tsc` through `tsconfig.typecheck.json`; an unused `@ts-expect-error` fails the
+run. The invalid and valid locale configs in `test-fixtures/localeConfigCases.ts`, at the
+repo root, run here and in i18n-utils, so the two `validate()` copies cannot drift.
 
 # License
 

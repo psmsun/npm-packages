@@ -1,6 +1,6 @@
 {
   "name": "@prismetic/seo-utils",
-  "version": "2.4.0",
+  "version": "2.4.1",
   "description": "Next.js metadata, JSON-LD and sitemap noIndex helpers for Strapi-backed sites — React 19 / Next 16",
   "type": "module",
   "main": "dist/index.js",
@@ -30,6 +30,7 @@
   "files": [
     "dist"
   ],
+  "sideEffects": false,
   "repository": {
     "type": "git",
     "url": "git+https://github.com/psmsun/npm-packages.git",
@@ -41,8 +42,8 @@
   },
   "scripts": {
     "build": "tsc",
-    "test": "vitest run",
-    "prepublishOnly": "vitest run && tsc"
+    "test": "vitest run --typecheck --typecheck.tsconfig tsconfig.typecheck.json",
+    "prepublishOnly": "npm test && tsc"
   },
   "peerDependencies": {
     "react": ">=18"

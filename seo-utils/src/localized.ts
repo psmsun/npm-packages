@@ -241,7 +241,7 @@ export function createLocalizedSeo(config: LocalizedSeoConfig): LocalizedSeo {
 }
 
 export function alternatesFromLocalizations<
-  T extends { locale: string; publishedAt?: string | null },
+  T extends { locale: string; publishedAt?: string | null; [field: string]: any },
 >(
   localizations: readonly T[] | null | undefined,
   toRoute: (localization: T) => string,
