@@ -68,4 +68,15 @@ describe("isActiveCampaignSimpleEmbed", () => {
   ])("is false for %s", (_, html) => {
     expect(isActiveCampaignSimpleEmbed(html as never)).toBe(false);
   });
+
+  test.each([
+    ["embed.php without /f/", `<script src="https://itegroup.activehosted.com/embed.php?id=12"></script>`],
+    ["the text embed.php in visible copy", `<p>Paste the embed.php snippet into the CMS.</p>`],
+  ])("is false for %s", (_, html) => {
+    expect(isActiveCampaignSimpleEmbed(html)).toBe(false);
+  });
+
+  test("finds the loader on a custom ActiveCampaign domain", () => {
+    expect(isActiveCampaignSimpleEmbed(`<script src="https://forms.itegroup.com/f/embed.php?id=12"></script>`)).toBe(true);
+  });
 });

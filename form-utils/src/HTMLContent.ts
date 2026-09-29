@@ -12,6 +12,11 @@ export interface HTMLContentProps {
   [key: string]: any;
 }
 
+function simpleEmbedMessage(id: unknown, recaptchaHost: string): string {
+  const form = id == null ? "A form" : `Form ${JSON.stringify(id)}`;
+  return `[form] ${form} is an ActiveCampaign simple embed (embed.php): its reCAPTCHA host cannot be switched to ${recaptchaHost}. Use the full embed code.`;
+}
+
 export function HTMLContent({
   html,
   allowRerender = false,
@@ -20,13 +25,17 @@ export function HTMLContent({
 }: HTMLContentProps) {
   const divRef = useRef<HTMLDivElement>(null);
   const isFirstRender = useRef(true);
+  const loggedHtml = useRef<string | null>(null);
 
   if (typeof window === "undefined" && recaptchaHost && isActiveCampaignSimpleEmbed(html)) {
-    const form = rest.id == null ? "A form" : `Form ${JSON.stringify(rest.id)}`;
-    console.error(
-      `[form] ${form} is an ActiveCampaign simple embed (embed.php): its reCAPTCHA host cannot be switched to ${recaptchaHost}. Use the full embed code.`,
-    );
+    console.error(simpleEmbedMessage(rest.id, recaptchaHost));
   }
+
+  useEffect(() => {
+    if (!recaptchaHost || !isActiveCampaignSimpleEmbed(html) || loggedHtml.current === html) return;
+    loggedHtml.current = html;
+    console.error(simpleEmbedMessage(rest.id, recaptchaHost));
+  }, [html, recaptchaHost]);
 
   useEffect(() => {
     if (!html || !divRef.current) {

@@ -291,11 +291,19 @@ non-string input is returned as is. `RECAPTCHA_NET_HOST` is `"www.recaptcha.net"
 isActiveCampaignSimpleEmbed(html: string): boolean
 ```
 
-True when the markup loads an ActiveCampaign **simple embed** (`embed.php`). That script
+True when the markup loads an ActiveCampaign **simple embed**, that is, it contains the
+loader path `/f/embed.php`. The host is not checked, because ActiveCampaign forms can run on
+a custom domain; `embed.php` without `/f/`, or in visible text, does not count. That script
 fetches the form and its reCAPTCHA from ActiveCampaign at runtime, so the host cannot be
-rewritten. `HTMLContent` with `recaptchaHost` set logs one `console.error` naming the form
-during the server render when it meets one; paste the **full embed code** into the CMS
-instead.
+rewritten.
+
+`HTMLContent` with `recaptchaHost` set logs one `console.error` naming the form when it
+meets one: during a server render, and from its mount effect in the browser, once per
+mounted component and `html` value. Paste the **full embed code** into the CMS instead.
+
+Under a `<Suspense>` boundary with `useSearchParams`, as every ITE `Form` renders it, nothing
+runs on the server, so the warning appears in the browser console. For a build-time log,
+call `isActiveCampaignSimpleEmbed` in a server-rendered parent.
 
 ---
 
@@ -457,10 +465,21 @@ before gathering any evidence, and absence of evidence isn't grounds to reject.
   fall-through returns the same verdict for any `has_dns_mx` response. Harmless,
   but it reads as if it does more than it does.
 
+## Upgrading to 1.3.1
+
+No code change is needed. What a site sees:
+
+- A simple embed rendered with `recaptchaHost` set now also logs its `console.error` in the
+  browser. Without `recaptchaHost` nothing changes: no log, and the same injected DOM.
+- `isActiveCampaignSimpleEmbed` needs `/f/embed.php`. `embed.php` anywhere else, such as in
+  visible text, no longer counts.
+- `package.json` declares `"sideEffects": ["*.css"]`: a bundler may drop an unused module,
+  never the stylesheet.
+
 ## Development
 
 ```bash
-npm test -w form-utils     # vitest — 50 tests
+npm test -w form-utils     # vitest — 58 tests
 npm run build -w form-utils
 ```
 

@@ -6,5 +6,5 @@ export function rewriteRecaptchaHost(html: string, host: string = RECAPTCHA_NET_
 }
 
 export function isActiveCampaignSimpleEmbed(html: string): boolean {
-  return typeof html === "string" && html.includes("embed.php");
+  return typeof html === "string" && html.includes("/f/embed.php");
 }

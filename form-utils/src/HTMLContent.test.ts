@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { act, createElement, type ReactElement } from "react";
+import { act, createElement, type ReactElement, StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -113,15 +113,49 @@ describe("with recaptchaHost", () => {
     expect(errors[1][0]).toMatch(/^\[form\] A form is an ActiveCampaign simple embed \(embed\.php\)/);
   });
 
-  it("stays quiet for the full embed code, and in the browser", () => {
+  it("stays quiet for the full embed code", () => {
     renderOnServer(createElement(HTMLContent, { html: FULL_EMBED, recaptchaHost: RECAPTCHA_NET_HOST, id: 12 }));
-    mount(
-      createElement(HTMLContent, {
-        html: `<div data-loader="https://itegroup.activehosted.com/f/embed.php?id=12"></div>`,
-        recaptchaHost: RECAPTCHA_NET_HOST,
-        id: 12,
-      }),
-    );
+    expect(errors).toEqual([]);
+  });
+});
+
+describe("the simple-embed warning in the browser", () => {
+  const LOADER = `<div data-loader="https://itegroup.activehosted.com/f/embed.php?id=12"></div>`;
+  const WARNING =
+    "[form] Form 12 is an ActiveCampaign simple embed (embed.php): its reCAPTCHA host cannot be switched to www.recaptcha.net. Use the full embed code.";
+
+  it("logs once on mount, with the server's text", () => {
+    mount(createElement(HTMLContent, { html: LOADER, recaptchaHost: RECAPTCHA_NET_HOST, id: 12 }));
+    expect(errors).toEqual([[WARNING]]);
+    mount(createElement(HTMLContent, { html: LOADER, recaptchaHost: RECAPTCHA_NET_HOST }));
+    expect(errors[1][0]).toMatch(/^\[form\] A form is an ActiveCampaign simple embed \(embed\.php\)/);
+  });
+
+  it("logs once under StrictMode", () => {
+    mount(createElement(StrictMode, null, createElement(HTMLContent, { html: LOADER, recaptchaHost: RECAPTCHA_NET_HOST, id: 12 })));
+    expect(errors).toEqual([[WARNING]]);
+  });
+
+  it("logs once per html value, not per render", () => {
+    const container = document.createElement("div");
+    const root = createRoot(container);
+    const other = LOADER.replace("id=12", "id=13");
+    act(() => root.render(createElement(HTMLContent, { html: LOADER, recaptchaHost: RECAPTCHA_NET_HOST, id: 12 })));
+    act(() => root.render(createElement(HTMLContent, { html: LOADER, recaptchaHost: RECAPTCHA_NET_HOST, id: 12, className: "x" })));
+    expect(errors).toHaveLength(1);
+    act(() => root.render(createElement(HTMLContent, { html: other, recaptchaHost: RECAPTCHA_NET_HOST, id: 12 })));
+    expect(errors).toEqual([[WARNING], [WARNING]]);
+    act(() => root.unmount());
+  });
+
+  it("stays quiet for the full embed code with recaptchaHost set", () => {
+    mount(createElement(HTMLContent, { html: `${PLAIN}${RECAPTCHA}`, recaptchaHost: RECAPTCHA_NET_HOST, id: 12 }));
+    expect(errors).toEqual([]);
+  });
+
+  it("stays quiet for a simple embed without recaptchaHost, and injects what 1.2.1 injects", () => {
+    const injected = mount(createElement(HTMLContent, { html: LOADER, ...PROPS }));
+    expect(injected).toBe(mount(createElement(HTMLContent121, { html: LOADER, ...PROPS })));
     expect(errors).toEqual([]);
   });
 });
