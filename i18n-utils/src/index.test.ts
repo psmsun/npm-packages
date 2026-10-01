@@ -8,6 +8,7 @@ import {
   isLocaleEnabled,
   localeFromPath,
   type LocalesConfig,
+  localizeHref,
   localizePath,
   otherLocales,
   stripLocalePrefix,
@@ -138,6 +139,97 @@ describe("localizePath", () => {
   });
 });
 
+describe("localizeHref", () => {
+  const exclude = ["/lp/components"];
+
+  it("returns the same string on an unprefixed locale", () => {
+    for (const href of ["/", "", "/about/", "about", "/about/?x=1#y", "/brochure.pdf", "/lp/components/", "/cn/about/", "https://x.test/a", "#top", "?page=2"]) {
+      expect(localizeHref(MOSBUILD, href, "en")).toBe(href);
+      expect(localizeHref(MOSBUILD, href, "en", { exclude })).toBe(href);
+    }
+  });
+
+  it.each([
+    ["/", "/cn/"],
+    ["", "/cn/"],
+    ["about", "/cn/about"],
+    ["/about/", "/cn/about/"],
+    ["/about/?x=1#y", "/cn/about/?x=1#y"],
+    ["/?x", "/cn/?x"],
+    ["/cnc-machines/", "/cn/cnc-machines/"],
+    ["/articles/web-2.0-trends/", "/cn/articles/web-2.0-trends/"],
+    ["/sectors/node.js/", "/cn/sectors/node.js/"],
+    ["/lp/components-2/", "/cn/lp/components-2/"],
+    ["/brochure.pdf/", "/cn/brochure.pdf/"],
+  ])("prefixes %j as %j", (href, expected) => {
+    expect(localizeHref(MOSBUILD, href, "zh-CN")).toBe(expected);
+    expect(localizeHref(MOSBUILD, expected, "zh-CN")).toBe(expected);
+  });
+
+  it.each(["https://expopharmtech.com/about/", "http://x.test", "mailto:info@ite.group", "tel:+74951234567", "//cdn.test/x", "///about", "#speakers", "?page=2"])(
+    "leaves %s alone",
+    (href) => {
+      expect(localizeHref(MOSBUILD, href, "zh-CN")).toBe(href);
+    },
+  );
+
+  it.each(["/cn", "/cn/", "/cn/about/", "/cn?x=1", "/cn#top", "cn/about", "/cn/brochure.pdf", "/cn/lp/components/"])(
+    "is idempotent — %s",
+    (href) => {
+      expect(localizeHref(MOSBUILD, href, "zh-CN")).toBe(href);
+    },
+  );
+
+  it.each([
+    "/brochure.pdf", "/uploads/a.PDF?v=2", "/Brochure.PDF#page=2", "uploads/a.pdf", "/sitemap.xml", "/robots.txt",
+    "/data.json", "/export.csv", "/archive.zip", "/archive.rar", "/feed.rss", "/doc.doc", "/doc.docx", "/sheet.xls",
+    "/sheet.xlsx", "/deck.ppt", "/deck.pptx", "/event.ics", "/img.jpg", "/img.jpeg", "/img.png", "/img.gif",
+    "/logo.svg", "/img.webp", "/img.avif", "/favicon.ico", "/clip.mp4", "/clip.webm", "/audio.mp3",
+  ])("leaves the static file %s alone", (href) => {
+    expect(localizeHref(MOSBUILD, href, "zh-CN")).toBe(href);
+  });
+
+  it.each(["/lp/components", "/lp/components/", "/lp/components/x/", "/lp/components?x=1", "/lp/components#y", "lp/components"])(
+    "leaves the excluded %s alone",
+    (href) => {
+      expect(localizeHref(MOSBUILD, href, "zh-CN", { exclude })).toBe(href);
+    },
+  );
+
+  it.each(["/lp/", "/lp/components-x/", "/lpx/components/", "/x/lp/components/", "/LP/components/"])(
+    "prefixes %s, which is not excluded",
+    (href) => {
+      expect(localizeHref(MOSBUILD, href, "zh-CN", { exclude })).toBe(`/cn${href}`);
+    },
+  );
+
+  it("accepts entries with or without slashes", () => {
+    for (const entries of [["lp/components/"], ["/lp/components/"], ["/lp/components?x"]]) {
+      expect(localizeHref(MOSBUILD, "/lp/components/x/", "zh-CN", { exclude: entries })).toBe("/lp/components/x/");
+    }
+  });
+
+  it("ignores an entry with no segments", () => {
+    expect(localizeHref(MOSBUILD, "/about/", "zh-CN", { exclude: ["", "/", "?x"] })).toBe("/cn/about/");
+  });
+
+  it("matches any of several entries", () => {
+    const entries = ["/lp/components", "/en-only"];
+    expect(localizeHref(MOSBUILD, "/en-only/x/", "zh-CN", { exclude: entries })).toBe("/en-only/x/");
+    expect(localizeHref(MOSBUILD, "/about/", "zh-CN", { exclude: entries })).toBe("/cn/about/");
+  });
+
+  it("prefixes a prefixed default and a disabled locale", () => {
+    expect(localizeHref(RED_SEA, "/dining/", "en")).toBe("/en/dining/");
+    expect(localizeHref(RED_SEA, "/", "ar")).toBe("/ar/");
+    expect(localizeHref(ZH_OFF, "/about/", "zh-CN")).toBe("/cn/about/");
+  });
+
+  it("returns the href unchanged for an unconfigured locale", () => {
+    expect(localizeHref(MOSBUILD, "/about/", unknown("fr"))).toBe("/about/");
+  });
+});
+
 describe("stripLocalePrefix", () => {
   it("drops one leading prefix segment", () => {
     expect(stripLocalePrefix(MOSBUILD, ["cn", "about"], "zh-CN")).toEqual(["about"]);
@@ -231,6 +323,9 @@ describe("defineLocales", () => {
     expect(locales.enabledLocales()).toEqual(["en", "zh-CN"]);
     expect(locales.otherLocales("en")).toEqual(["zh-CN"]);
     expect(locales.localizePath("/about/", "zh-CN")).toBe("/cn/about/");
+    expect(locales.localizeHref("/about/", "zh-CN")).toBe("/cn/about/");
+    expect(locales.localizeHref("/brochure.pdf", "zh-CN")).toBe("/brochure.pdf");
+    expect(locales.localizeHref("/lp/components/x/", "zh-CN", { exclude: ["/lp/components"] })).toBe("/lp/components/x/");
     expect(locales.stripLocalePrefix(["cn", "about"], "zh-CN")).toEqual(["about"]);
     expect(locales.localeFromPath("/cn/x/")).toBe("zh-CN");
     expect(locales.htmlLangOf("zh-CN")).toBe("zh-CN");

@@ -71,6 +71,8 @@ import { defineLocales } from "@prismetic/i18n-utils";
 export const locales = defineLocales(LOCALES);
 
 locales.localizePath("/articles/x/", "zh-CN");   // "/cn/articles/x/"
+locales.localizeHref("/about/", "zh-CN");        // "/cn/about/" — a CMS link, after link-utils resolveHref
+locales.localizeHref("/brochure.pdf", "zh-CN");  // unchanged — a static file
 locales.localeFromPath("/cn/about/");            // "zh-CN"
 locales.withLocale({ slug: "x" }, "zh-CN");      // { slug: "x", locale: "zh-CN" }
 locales.withLocale({ slug: "x" }, "en");         // the same object, untouched
@@ -177,6 +179,27 @@ const LocaleSwitch = ({ target }: { target: Locale }) => {
 Client components import the plain `LOCALES` and use the standalone functions; only
 server and Node code imports `lib/i18n/config`, which calls `defineLocales`.
 
+```tsx
+// components/NavigationLink.tsx — every CMS link; a client component because it reads the locale from context
+"use client";
+import { localizeHref } from "@prismetic/i18n-utils";
+import { resolveHref } from "@prismetic/link-utils";
+import Link from "next/link";
+import { useLocale } from "@/components/LocaleProvider";
+import { LOCALES } from "@/lib/i18n/locales";
+
+const ENGLISH_ONLY = ["/lp/components"];
+
+const NavigationLink = ({ children, href, target, ...props }: NavigationLinkProps) => {
+  const { href: resolved, ...linkProps } = resolveHref(href, target);
+  const localized = localizeHref(LOCALES, resolved, useLocale(), { exclude: ENGLISH_ONLY });
+  return <Link href={localized} {...linkProps} {...props}>{children}</Link>;
+};
+```
+
+On an English page `localized` is the same string `resolveHref` returned, so English
+markup is byte-identical; zh redirect destinations go through the same call.
+
 ```ts
 // utils/api — English requests stay byte-identical
 import { withLocale } from "@prismetic/i18n-utils";
@@ -224,7 +247,7 @@ a non-blank string. The same checks as `createLocalizedSeo` in seo-utils.
 #### `localizePath(config, path, locale)`
 
 For links the code builds — card paths, the logo, the 404 home link. A link typed into
-the CMS renders as typed; editors write `/cn/…` themselves.
+the CMS goes through `localizeHref` instead.
 
 | `path` | unprefixed locale | `zh-CN` (`prefix: "cn"`) |
 | --- | --- | --- |
@@ -235,6 +258,43 @@ the CMS renders as typed; editors write `/cn/…` themselves.
 | `"https://…"`, `"mailto:…"`, `"tel:…"`, `"//…"`, `"#…"`, `"?…"` | unchanged | unchanged |
 
 A disabled locale is still prefixed. An unconfigured locale returns the path unchanged.
+
+#### `localizeHref(config, href, locale, options?)`
+
+```ts
+localizeHref<L extends string>(config: LocalesConfig<L>, href: string, locale: L, options?: { exclude?: readonly string[] }): string
+```
+
+The CMS counterpart of `localizePath`. It runs after link-utils `resolveHref`, on one
+href at a time, and rewrites relative internal links only; same-origin absolute URLs and
+links inside rich-text or markdown HTML are left as typed. It prefixes exactly like
+`localizePath`, except that a static file or an excluded path is returned unchanged.
+
+| `href` | unprefixed locale | `zh-CN` (`prefix: "cn"`) |
+| --- | --- | --- |
+| `"/"`, `""` | unchanged | `"/cn/"` |
+| `"/about/?x=1#y"` | unchanged | `"/cn/about/?x=1#y"` |
+| `"/cnc-machines/"` | unchanged | `"/cn/cnc-machines/"` |
+| `"/cn/about/"`, `"/cn?x=1"` | unchanged | unchanged — already prefixed, so a code-built link may pass through again |
+| `"https://…"`, `"//…"`, `"mailto:…"`, `"tel:…"`, `"#…"`, `"?…"` | unchanged | unchanged |
+| `"/brochure.pdf"`, `"/uploads/a.PDF?v=2"` | unchanged | unchanged — a static file |
+| `"/lp/components/x/"` with `exclude: ["/lp/components"]` | unchanged | unchanged |
+
+**Static files**: a path ending in `.xml`, `.pdf`, `.txt`, `.json`, `.csv`, `.zip`,
+`.rar`, `.rss`, `.doc`, `.docx`, `.xls`, `.xlsx`, `.ppt`, `.pptx`, `.ics`, `.jpg`,
+`.jpeg`, `.png`, `.gif`, `.svg`, `.webp`, `.avif`, `.ico`, `.mp4`, `.webm` or `.mp3`,
+tested case-insensitively on the path before `?` or `#` — the union of link-utils' two
+lists. A trailing slash means a route (`"/brochure.pdf/"` is prefixed), and a dotted slug
+such as `"/articles/web-2.0-trends/"` is a route.
+
+**`exclude`**: each entry is matched as whole path segments from the start of the path,
+case-sensitively, against the unprefixed path. `"/lp/components"` covers
+`/lp/components`, `/lp/components/x/` and `/lp/components?x=1`, but not
+`/lp/components-x/` or `/x/lp/components/`. Slashes around an entry are optional; an
+entry with no segments is ignored.
+
+A disabled locale is still prefixed. An unconfigured locale returns `href` unchanged.
+"Unchanged" always means the same string.
 
 #### `localeFromPath(config, pathname)`
 
@@ -296,7 +356,7 @@ interface LocalesConfig<L extends string = string> {
 }
 ```
 
-Also exported: `DefinedLocales<L>`.
+Also exported: `DefinedLocales<L>`, `LocalizeHrefOptions`.
 
 ### Entry `./react`
 
@@ -358,8 +418,10 @@ Also exported: `LocaleSwitch`, `LocaleSwitchOptions`, `LocaleSwitchLinkProps`.
 
 ## Limits
 
-- **`localizePath` is for code-built links only.** It does not rewrite CMS links, markdown
-  or rich text.
+- **`localizePath` is for code-built links and `localizeHref` for one CMS href at a time,
+  after `resolveHref`.** Neither rewrites links inside rich text or markdown HTML, and
+  `localizeHref` leaves a same-origin absolute URL (`https://expopharmtech.com/about/`) as
+  typed.
 - **`useLocaleSwitch` needs the page to render its hreflang links.** A page with none,
   including every page while a locale is disabled, gets `fallback`.
 - **`PathLocaleProvider` renders the default locale first.** The 404 page's text switches
@@ -369,6 +431,12 @@ Also exported: `LocaleSwitch`, `LocaleSwitchOptions`, `LocaleSwitchLinkProps`.
   component, it ships in the JS chunk only. Never pass the `defineLocales` result: it
   carries functions, which Next will not pass from a server component to a client
   component.
+
+## Upgrading to 0.3
+
+Purely additive. `localizeHref` and `LocalizeHrefOptions` are new on the `.` entry, and
+`DefinedLocales` gains the bound `localizeHref`. No existing call changes, and no output
+changes unless a site calls `localizeHref`.
 
 ## Upgrading to 0.2
 
@@ -380,7 +448,7 @@ keeps the config out of the HTML.
 ## Development
 
 ```bash
-npm test -w i18n-utils        # vitest — 113 tests across 3 files, type tests included
+npm test -w i18n-utils        # vitest — 186 tests across 3 files, type tests included
 npm run build -w i18n-utils
 ```
 

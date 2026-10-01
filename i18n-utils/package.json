@@ -1,6 +1,6 @@
 {
   "name": "@prismetic/i18n-utils",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Locale config, locale-aware paths and a React locale provider for Next.js sites with more than one locale — React 18+ / Next 16",
   "type": "module",
   "main": "dist/index.js",

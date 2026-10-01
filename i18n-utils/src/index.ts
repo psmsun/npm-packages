@@ -12,11 +12,16 @@ export interface LocalesConfig<L extends string = string> {
   locales: Record<L, LocaleDefinition>;
 }
 
+export interface LocalizeHrefOptions {
+  exclude?: readonly string[];
+}
+
 export interface DefinedLocales<L extends string = string> extends LocalesConfig<L> {
   isLocaleEnabled(locale: L): boolean;
   enabledLocales(): L[];
   otherLocales(locale: L): L[];
   localizePath(path: string, locale: L): string;
+  localizeHref(href: string, locale: L, options?: LocalizeHrefOptions): string;
   stripLocalePrefix(segments: string[], locale: L): string[];
   localeFromPath(pathname: string): L;
   htmlLangOf(locale: L): string;
@@ -66,6 +71,29 @@ export function localizePath<L extends string>(
   const rest = path.replace(/^\/+/, "");
   if (rest.split(/[/?#]/)[0] === prefix) return path;
   return `/${prefix}/${rest}`;
+}
+
+// Union of link-utils' prefetch and filename extension lists; a /cn/ twin of a public/ file is always a 404.
+const STATIC_FILE =
+  /\.(?:xml|pdf|txt|json|csv|zip|rar|rss|docx?|xlsx?|pptx?|ics|jpe?g|png|gif|svg|webp|avif|ico|mp4|webm|mp3)$/i;
+
+function segmentsOf(href: string): string[] {
+  return href.split(/[?#]/)[0].split("/").filter(Boolean);
+}
+
+export function localizeHref<L extends string>(
+  config: LocalesConfig<L>,
+  href: string,
+  locale: L,
+  options?: LocalizeHrefOptions,
+): string {
+  if (STATIC_FILE.test(href.split(/[?#]/)[0])) return href;
+  const segments = segmentsOf(href);
+  const excluded = (options?.exclude ?? []).some((entry) => {
+    const prefix = segmentsOf(entry);
+    return prefix.length > 0 && prefix.every((segment, i) => segments[i] === segment);
+  });
+  return excluded ? href : localizePath(config, href, locale);
 }
 
 export function stripLocalePrefix<L extends string>(
@@ -158,6 +186,7 @@ export function defineLocales<L extends string>(config: LocalesConfig<L>): Defin
     enabledLocales: () => enabledLocales(config),
     otherLocales: (locale) => otherLocales(config, locale),
     localizePath: (path, locale) => localizePath(config, path, locale),
+    localizeHref: (href, locale, options) => localizeHref(config, href, locale, options),
     stripLocalePrefix: (segments, locale) => stripLocalePrefix(config, segments, locale),
     localeFromPath: (pathname) => localeFromPath(config, pathname),
     htmlLangOf: (locale) => htmlLangOf(config, locale),
