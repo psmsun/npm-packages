@@ -2,10 +2,14 @@ import { describe, expect, it } from "vitest";
 import {
   buildFilterSearch,
   canResetFilters,
+  derivePageSizeOptions,
   deriveTopicNames,
   deriveTopicOptions,
   deriveYears,
+  type FilterState,
   filterArticles,
+  limitArticles,
+  type PageSize,
   parseFilterParams,
   resolveAccessors,
   slugifyTopic,
@@ -181,6 +185,36 @@ describe("sortArticles", () => {
   });
 });
 
+describe("derivePageSizeOptions", () => {
+  it("offers every size below the total, then all", () => {
+    expect(derivePageSizeOptions(308)).toEqual([30, 60, 90, "all"]);
+    expect(derivePageSizeOptions(78)).toEqual([30, 60, "all"]);
+    expect(derivePageSizeOptions(31)).toEqual([30, "all"]);
+  });
+
+  it("is empty when the smallest size already shows everything", () => {
+    expect(derivePageSizeOptions(30)).toEqual([]);
+    expect(derivePageSizeOptions(8)).toEqual([]);
+  });
+});
+
+describe("limitArticles", () => {
+  const items = Array.from({ length: 5 }, (_, i) => i);
+
+  it("cuts to the page size", () => {
+    expect(limitArticles(items, 3)).toEqual([0, 1, 2]);
+  });
+
+  it("returns every item for all", () => {
+    expect(limitArticles(items, "all")).toEqual(items);
+  });
+
+  it("does not mutate its input", () => {
+    limitArticles(items, 2);
+    expect(items).toEqual([0, 1, 2, 3, 4]);
+  });
+});
+
 describe("parseFilterParams", () => {
   const topics = ["dairy", "cheese"];
   const years = ["2026", "2025"];
@@ -201,6 +235,31 @@ describe("parseFilterParams", () => {
 
   it("returns nothing for a bare URL", () => {
     expect(parseFilterParams("", topics, years)).toEqual({});
+  });
+
+  describe("show", () => {
+    const show = (search: string, known: PageSize[] = [30, 60, 90, "all"]) =>
+      parseFilterParams(search, topics, years, known).pageSize;
+
+    it("reads a known size or all", () => {
+      expect(show("?show=60")).toBe(60);
+      expect(show("?show=all")).toBe("all");
+    });
+
+    it("drops a size that is not offered", () => {
+      expect(show("?show=45")).toBeUndefined();
+      expect(show("?show=all", [])).toBeUndefined();
+    });
+
+    it("matches the string form, so padded numbers are dropped", () => {
+      expect(show("?show=060")).toBeUndefined();
+    });
+
+    it("ignores show entirely without known sizes", () => {
+      expect(parseFilterParams("?show=60", topics, years)).not.toHaveProperty(
+        "pageSize",
+      );
+    });
   });
 });
 
@@ -240,6 +299,28 @@ describe("buildFilterSearch", () => {
       }),
     ).toBe("");
   });
+
+  describe("show", () => {
+    const build = (search: string, pageSize?: PageSize) =>
+      buildFilterSearch(search, { topics: [], year: "", sort: "newest", pageSize });
+
+    it("writes no show at the default size", () => {
+      expect(build("", 30)).toBe("");
+    });
+
+    it("writes a non-default size or all", () => {
+      expect(build("", 60)).toBe("?show=60");
+      expect(build("", "all")).toBe("?show=all");
+    });
+
+    it("leaves an incoming show alone when no size is given", () => {
+      expect(build("?show=60")).toBe("?show=60");
+    });
+
+    it("clears an incoming show at the default size", () => {
+      expect(build("?show=60", 30)).toBe("");
+    });
+  });
 });
 
 describe("canResetFilters", () => {
@@ -254,5 +335,18 @@ describe("canResetFilters", () => {
   it("is true for a topic or a year", () => {
     expect(canResetFilters({ topics: ["dairy"], year: "", sort: "newest" })).toBe(true);
     expect(canResetFilters({ topics: [], year: "2025", sort: "newest" })).toBe(true);
+  });
+
+  it("counts a non-default page size", () => {
+    const at = (pageSize?: PageSize): FilterState => ({
+      topics: [],
+      year: "",
+      sort: "newest",
+      pageSize,
+    });
+    expect(canResetFilters(at(60))).toBe(true);
+    expect(canResetFilters(at("all"))).toBe(true);
+    expect(canResetFilters(at(30))).toBe(false);
+    expect(canResetFilters(at(undefined))).toBe(false);
   });
 });

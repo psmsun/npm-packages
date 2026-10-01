@@ -5,11 +5,15 @@ import {
   type ArticleAccessors,
   buildFilterSearch,
   canResetFilters,
+  DEFAULT_PAGE_SIZE,
   DEFAULT_SORT,
+  derivePageSizeOptions,
   deriveTopicNames,
   deriveTopicOptions,
   deriveYears,
   filterArticles,
+  limitArticles,
+  type PageSize,
   parseFilterParams,
   resolveAccessors,
   type SortKey,
@@ -29,16 +33,22 @@ export interface UseArticleFiltersOptions<T> extends ArticleAccessors<T> {
 export interface UseArticleFiltersResult<T> {
   /** Filtered and sorted. */
   articles: T[];
+  /** `articles` cut to `pageSize` — render this on sites that use the Show select. */
+  visibleArticles: T[];
   topicOptions: TopicOption[];
   yearOptions: string[];
   selectedTopics: string[];
   selectedYear: string;
   sort: SortKey;
+  pageSize: PageSize;
+  /** From the unfiltered total; empty when the list fits in one page. */
+  pageSizeOptions: PageSize[];
   setTopics: (slugs: string[]) => void;
   toggleTopic: (slug: string) => void;
   clearTopics: () => void;
   setYear: (year: string) => void;
   setSort: (sort: SortKey) => void;
+  setPageSize: (size: PageSize) => void;
   resetAll: () => void;
   isFiltered: boolean;
   /** True when anything differs from the defaults, sort included — drives a Reset button. */
@@ -61,6 +71,7 @@ export default function useArticleFilters<T>(
   const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
   const [selectedYear, setSelectedYear] = useState("");
   const [sort, setSort] = useState<SortKey>(DEFAULT_SORT);
+  const [pageSize, setPageSize] = useState<PageSize>(DEFAULT_PAGE_SIZE);
 
   const topicNames = useMemo(
     () => deriveTopicNames(source, accessors),
@@ -77,6 +88,11 @@ export default function useArticleFilters<T>(
     [source, topicNames, selectedYear, accessors],
   );
 
+  const pageSizeOptions = useMemo(
+    () => derivePageSizeOptions(source.length),
+    [source.length],
+  );
+
   // Read the shared link once mounted. Applying it during render would make
   // the first client paint diverge from the statically exported HTML.
   const hydratedRef = useRef(false);
@@ -88,11 +104,13 @@ export default function useArticleFilters<T>(
       window.location.search,
       topicNames.map((topic) => topic.slug),
       yearOptions,
+      pageSizeOptions,
     );
     if (parsed.topics) setSelectedTopics(parsed.topics);
     if (parsed.year) setSelectedYear(parsed.year);
     if (parsed.sort) setSort(parsed.sort);
-  }, [syncUrl, topicNames, yearOptions]);
+    if (parsed.pageSize !== undefined) setPageSize(parsed.pageSize);
+  }, [syncUrl, topicNames, yearOptions, pageSizeOptions]);
 
   useEffect(() => {
     // Writing before the URL has been read would erase the incoming link.
@@ -102,13 +120,14 @@ export default function useArticleFilters<T>(
       topics: selectedTopics,
       year: selectedYear,
       sort,
+      pageSize,
     });
     window.history.replaceState(
       null,
       "",
       `${window.location.pathname}${search}${window.location.hash}`,
     );
-  }, [syncUrl, selectedTopics, selectedYear, sort]);
+  }, [syncUrl, selectedTopics, selectedYear, sort, pageSize]);
 
   const articles = useMemo(
     () =>
@@ -118,6 +137,11 @@ export default function useArticleFilters<T>(
         accessors,
       ),
     [source, selectedTopics, selectedYear, sort, accessors],
+  );
+
+  const visibleArticles = useMemo(
+    () => limitArticles(articles, pageSize),
+    [articles, pageSize],
   );
 
   const toggleTopic = useCallback((slug: string) => {
@@ -134,26 +158,32 @@ export default function useArticleFilters<T>(
     setSelectedTopics([]);
     setSelectedYear("");
     setSort(DEFAULT_SORT);
+    setPageSize(DEFAULT_PAGE_SIZE);
   }, []);
 
   return {
     articles,
+    visibleArticles,
     topicOptions,
     yearOptions,
     selectedTopics,
     selectedYear,
     sort,
+    pageSize,
+    pageSizeOptions,
     setTopics: setSelectedTopics,
     toggleTopic,
     clearTopics,
     setYear: setSelectedYear,
     setSort,
+    setPageSize,
     resetAll,
     isFiltered: selectedTopics.length > 0 || selectedYear !== "",
     canReset: canResetFilters({
       topics: selectedTopics,
       year: selectedYear,
       sort,
+      pageSize,
     }),
     signature: `${selectedTopics.join(",")}|${selectedYear}|${sort}`,
   };

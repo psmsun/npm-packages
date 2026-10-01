@@ -9,7 +9,7 @@ Three layers, usable independently:
 
 | Layer | Export | What it is |
 | --- | --- | --- |
-| Pure | `filterArticles`, `sortArticles`, `derive*`, `parse*`/`build*` | No React, no DOM. Plain functions over an array of articles. |
+| Pure | `filterArticles`, `sortArticles`, `limitArticles`, `derive*`, `parse*`/`build*` | No React, no DOM. Plain functions over an array of articles. |
 | State | `useArticleFilters` | All state, derivation and URL sync. No markup, no design. Used by every site including the MUI ones. |
 | UI | `ArticleFilterBar` | The shadcn/Radix control row. Every class is a prop; shared defaults ship as plain CSS. |
 
@@ -44,6 +44,11 @@ regardless of specificity — so without the layer, a `classNames` utility on a
 property the defaults already set (trigger font, panel background, …) would be
 silently dead. `@import "tailwindcss"` declares the layer order first, so the
 package rules land below utilities with no extra syntax on the import.
+
+Since 1.2.0 the bar and its panel are `0.875em` of the surrounding text. Restore
+the old size with `classNames={{ root: "text-base", panel: "text-base" }}`. At
+≥640px the row wraps, and the Show control is `9rem` wide via
+`article-filter-bar__control--show`.
 
 ## Requirements
 
@@ -80,6 +85,9 @@ return (
       onClearTopics={filters.clearTopics}
       onYearChange={filters.setYear}
       onSortChange={filters.setSort}
+      pageSize={filters.pageSize}
+      pageSizeOptions={filters.pageSizeOptions}
+      onPageSizeChange={filters.setPageSize}
     >
       <button
         type="button"
@@ -89,20 +97,23 @@ return (
         Reset filters
       </button>
     </ArticleFilterBar>
-    {filters.articles.map((article) => (
+    {filters.visibleArticles.map((article) => (
       <Card key={article.id} {...article} />
     ))}
   </>
 );
 ```
 
-`filters.articles` is the filtered **and** sorted list. You render that, not the
-array you passed in. Children render last in the bar's row — pass the site's own
-Button there for a Reset control.
+`filters.articles` is the full filtered **and** sorted list; `filters.visibleArticles`
+is that list cut to the Show selection (30 by default). Render `visibleArticles`,
+not the array you passed in. Children render last in the bar's row — pass the
+site's own Button there for a Reset control.
 
 ### Real-world usage
 
-With site classes, pagination reset and non-default field names:
+With site classes, pagination reset and non-default field names. This is the
+"hook only, own pagination via `signature`" pattern the MUI sites use, so it
+leaves out the Show select and renders `articles`, not `visibleArticles`:
 
 ```tsx
 "use client";
@@ -186,21 +197,25 @@ Returns `UseArticleFiltersResult<T>`:
 
 | field | type | |
 | --- | --- | --- |
-| `articles` | `T[]` | filtered **and** sorted — render this |
+| `articles` | `T[]` | filtered **and** sorted, every match |
+| `visibleArticles` | `T[]` | `articles` cut to `pageSize` — render this when using the Show select |
 | `topicOptions` | `TopicOption[]` | `{ slug, name, count }`, alphabetical, counts scoped to the selected year |
 | `yearOptions` | `string[]` | distinct years, newest first |
 | `selectedTopics` | `string[]` | selected topic **slugs** |
 | `selectedYear` | `string` | `""` means all years |
 | `sort` | `SortKey` | `"newest" \| "oldest" \| "title"` |
+| `pageSize` | `PageSize` | `30`, `60`, `90` or `"all"`; starts at `30` |
+| `pageSizeOptions` | `PageSize[]` | from the **unfiltered** total; `[]` when the list fits in one page |
 | `setTopics` | `(slugs: string[]) => void` | replace the whole selection |
 | `toggleTopic` | `(slug: string) => void` | add or remove one |
 | `clearTopics` | `() => void` | clear topics only |
 | `setYear` | `(year: string) => void` | `""` clears |
 | `setSort` | `(sort: SortKey) => void` | |
-| `resetAll` | `() => void` | topics, year and sort back to defaults |
+| `setPageSize` | `(size: PageSize) => void` | |
+| `resetAll` | `() => void` | topics, year, sort and page size back to defaults |
 | `isFiltered` | `boolean` | true when a topic or year is active — **sort is not counted** |
-| `canReset` | `boolean` | true when anything differs from the defaults, **sort included** — drives a Reset button |
-| `signature` | `string` | changes whenever the result set changes; use as a `useEffect` dep to reset pagination |
+| `canReset` | `boolean` | true when anything differs from the defaults, **sort and page size included** — drives a Reset button |
+| `signature` | `string` | changes whenever the result set changes; use as a `useEffect` dep to reset pagination. Page size is **not** part of it |
 
 ```tsx
 const filters = useArticleFilters(articles, { syncUrl: false });
@@ -233,7 +248,10 @@ the MUI sites reuse the hook without this component.
 | `classNames` | `ArticleFilterBarClassNames` | `{}` | merged **after** the BEM defaults |
 | `labels` | `ArticleFilterBarLabels` | English | per-key override, see below |
 | `sortOptions` | `{ value: SortKey; label: string }[]` | `SORT_OPTIONS` | site-specific or translated sort wording |
-| `children` | `ReactNode` | — | rendered last in the row, after Sort, with no wrapper — e.g. a Reset button |
+| `pageSize` | `PageSize` | `30` | from `filters.pageSize` |
+| `pageSizeOptions` | `PageSize[]` | — | from `filters.pageSizeOptions` |
+| `onPageSizeChange` | `(size: PageSize) => void` | — | the Show select renders only when this is set **and** there are 2+ options |
+| `children` | `ReactNode` | — | rendered last in the row, after Sort and Show, with no wrapper — e.g. a Reset button |
 
 **`classNames` keys** — each maps onto the BEM class it sits beside:
 
@@ -265,6 +283,9 @@ Your class is appended, so a Tailwind utility overrides the default without
 | `topicsAriaLabel` | `string` | `"Filter articles by topic"` |
 | `yearsAriaLabel` | `string` | `"Filter articles by year"` |
 | `sortAriaLabel` | `string` | `"Sort articles"` |
+| `showCount` | `(size: number) => string` | ``(n) => `Show ${n}` `` |
+| `showAll` | `string` | `"Show all"` |
+| `pageSizeAriaLabel` | `string` | `"Number of articles shown"` |
 
 ```tsx
 <ArticleFilterBar
@@ -479,19 +500,50 @@ sortArticles(articles, "title",  acc).map((a) => a.Title); // ["apple", "Mango",
 
 ---
 
+### Page size
+
+#### `derivePageSizeOptions(total)`
+
+```ts
+derivePageSizeOptions(total: number): PageSize[]
+```
+
+Every size in `PAGE_SIZES` strictly below `total`, then `"all"`. Empty when the
+smallest size already shows everything, which is what hides the Show select.
+
+```ts
+derivePageSizeOptions(308); // [30, 60, 90, "all"]
+derivePageSizeOptions(78);  // [30, 60, "all"]
+derivePageSizeOptions(31);  // [30, "all"]
+derivePageSizeOptions(30);  // []
+derivePageSizeOptions(8);   // []
+```
+
+#### `limitArticles(articles, pageSize)`
+
+```ts
+limitArticles<T>(articles: readonly T[], pageSize: PageSize): T[]
+```
+
+The first `pageSize` items, or all of them for `"all"`. Returns a new array;
+**does not mutate its input**.
+
+---
+
 ### URL state
 
-#### `parseFilterParams(search, knownTopics, knownYears)`
+#### `parseFilterParams(search, knownTopics, knownYears, knownPageSizes?)`
 
 ```ts
 parseFilterParams(
   search: string,
   knownTopics: readonly string[],
   knownYears: readonly string[],
+  knownPageSizes?: readonly PageSize[],
 ): Partial<FilterState>
 ```
 
-Reads `?topics=a,b&year=2025&sort=title`. Returns a **`Partial`** — a key is
+Reads `?topics=a,b&year=2025&sort=title&show=60`. Returns a **`Partial`** — a key is
 present only when the URL carried a value that survived validation, so the
 result can be spread over current state without clobbering it.
 
@@ -504,6 +556,19 @@ parseFilterParams("?year=1999", topics, years).year;           // undefined
 parseFilterParams("?sort=bogus", topics, years).sort;          // undefined
 parseFilterParams("?sort=title", topics, years).sort;          // "title"
 parseFilterParams("", topics, years);                          // {}
+```
+
+`show` is read only when `knownPageSizes` is passed. It is matched on the string
+form of each known size, never through `Number()`, so `?show=060` and `?show=6e1`
+are dropped. Without the 4th argument the result has no `pageSize` key at all.
+
+```ts
+const sizes: PageSize[] = [30, 60, 90, "all"];
+parseFilterParams("?show=60", topics, years, sizes).pageSize;  // 60
+parseFilterParams("?show=all", topics, years, sizes).pageSize; // "all"
+parseFilterParams("?show=45", topics, years, sizes).pageSize;  // undefined
+parseFilterParams("?show=060", topics, years, sizes).pageSize; // undefined
+parseFilterParams("?show=all", topics, years, []).pageSize;    // undefined
 ```
 
 #### `buildFilterSearch(search, state)`
@@ -533,18 +598,33 @@ buildFilterSearch("?topics=dairy&year=2025", { topics: [], year: "", sort: "newe
 The comma between slugs is percent-encoded to `%2C` by `URLSearchParams`;
 `parseFilterParams` decodes it back.
 
+`show` follows `state.pageSize`: the default `30` deletes it, any other size or
+`"all"` writes it, and an `undefined` `pageSize` leaves an incoming `show`
+untouched, since the caller does not own it.
+
+```ts
+const base: FilterState = { topics: [], year: "", sort: "newest" };
+buildFilterSearch("", { ...base, pageSize: 30 });         // ""
+buildFilterSearch("", { ...base, pageSize: 60 });         // "?show=60"
+buildFilterSearch("", { ...base, pageSize: "all" });      // "?show=all"
+buildFilterSearch("?show=60", base);                      // "?show=60"
+buildFilterSearch("?show=60", { ...base, pageSize: 30 }); // ""
+```
+
 #### `canResetFilters(state)`
 
 ```ts
 canResetFilters(state: FilterState): boolean
 ```
 
-True when topics, year **or sort** differ from the defaults. The hook exposes it
-as `canReset`.
+True when topics, year, **sort or page size** differ from the defaults. An
+`undefined` page size counts as the default. The hook exposes it as `canReset`.
 
 ```ts
-canResetFilters({ topics: [], year: "", sort: "newest" }); // false
-canResetFilters({ topics: [], year: "", sort: "oldest" }); // true
+canResetFilters({ topics: [], year: "", sort: "newest" });                // false
+canResetFilters({ topics: [], year: "", sort: "oldest" });                // true
+canResetFilters({ topics: [], year: "", sort: "newest", pageSize: 60 });  // true
+canResetFilters({ topics: [], year: "", sort: "newest", pageSize: 30 });  // false
 ```
 
 ---
@@ -572,24 +652,47 @@ const DEFAULT_SORT: SortKey = "newest";
 
 The initial sort, and the value `buildFilterSearch` treats as "write no param".
 
+#### `PAGE_SIZES`
+
+```ts
+const PAGE_SIZES: readonly number[] = [30, 60, 90];
+```
+
+The fixed Show sizes. There is no per-site list.
+
+#### `DEFAULT_PAGE_SIZE`
+
+```ts
+const DEFAULT_PAGE_SIZE = 30;
+```
+
+The initial page size, and the value `buildFilterSearch` treats as "write no
+`show`".
+
 ---
 
 ### Type exports
 
-`SortKey` · `SortOption` · `TopicOption` · `ArticleAccessors<T>` · `FilterState` ·
+`SortKey` · `SortOption` · `TopicOption` · `PageSize` · `ArticleAccessors<T>` · `FilterState` ·
 `UseArticleFiltersOptions<T>` · `UseArticleFiltersResult<T>` ·
 `ArticleFilterBarProps` · `ArticleFilterBarClassNames` · `ArticleFilterBarLabels`
 
 Each is expanded in the table of the function or component that consumes it.
-`FilterState` is the only one not shown above:
+`FilterState` and `PageSize` are the only ones not shown above:
 
 ```ts
+type PageSize = number | "all";
+
 interface FilterState {
   topics: string[];
   year: string;
   sort: SortKey;
+  pageSize?: PageSize;
 }
 ```
+
+`pageSize` is optional so callers that do not use the Show select can leave it
+out.
 
 Note that `parseFilterParams` returns `Partial<FilterState>` while
 `buildFilterSearch` requires a complete one.
@@ -607,6 +710,12 @@ Note that `parseFilterParams` returns `Partial<FilterState>` while
 - URL state is written with `history.replaceState`, defaults omitted. Unrelated
   params (utm tags) are preserved. Values absent from the current data are
   dropped on read rather than applied.
+- Show writes `?show=60`, `?show=90` or `?show=all`; the default `30` writes
+  nothing.
+- Show options come from the **unfiltered** total, so the select does not change
+  while filtering. It is hidden when the list has 30 or fewer articles.
+- `signature` deliberately excludes page size, so sites that paginate on it do
+  not reset when Show changes.
 - The year is sliced off the ISO date or datetime string (`2025-01-01` or
   `2025-01-01T03:30:00.000Z` — the UTC year), not read through `new Date()`,
   which would shift it by the viewer's timezone.
@@ -649,16 +758,18 @@ moving the trigger by transform after scroll events stop, which Radix's default
   string rather than parsed.
 - **`isFiltered` ignores sort.** Changing sort alone leaves it `false`. Use
   `canReset` for a Reset button that should also undo a sort change.
-- **No pagination.** `signature` exists so you can reset your own.
+- **`visibleArticles` is a head slice, not paging.** There is no page 2;
+  `signature` remains for sites that paginate themselves.
 
 ## Development
 
 ```bash
-npm test -w article-filters      # vitest — 31 over the pure layer, 2 over the bar's slot
+npm test -w article-filters      # vitest — 45 over the pure layer, 7 over the bar
 npm run build -w article-filters # tsc, emits dist/
 ```
 
 `src/article-filters.test.ts` covers `filters.ts`; `src/ArticleFilterBar.test.tsx`
-renders the bar with `renderToStaticMarkup` to pin the `children` slot. The hook
+renders the bar with `renderToStaticMarkup` to pin the `children` slot and the
+Show select. The hook
 has no test coverage. Every example in the API reference above is taken
 from a passing assertion in that file.

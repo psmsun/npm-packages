@@ -3,7 +3,13 @@
 import * as Checkbox from "@radix-ui/react-checkbox";
 import * as Popover from "@radix-ui/react-popover";
 import { type KeyboardEvent, type ReactNode, useId, useState } from "react";
-import { SORT_OPTIONS, type SortKey, type TopicOption } from "./filters.js";
+import {
+  DEFAULT_PAGE_SIZE,
+  type PageSize,
+  SORT_OPTIONS,
+  type SortKey,
+  type TopicOption,
+} from "./filters.js";
 
 const cx = (...parts: (string | false | null | undefined)[]) =>
   parts.filter(Boolean).join(" ");
@@ -36,6 +42,9 @@ export interface ArticleFilterBarLabels {
   topicsAriaLabel?: string;
   yearsAriaLabel?: string;
   sortAriaLabel?: string;
+  showCount?: (size: number) => string;
+  showAll?: string;
+  pageSizeAriaLabel?: string;
 }
 
 const DEFAULT_LABELS: Required<ArticleFilterBarLabels> = {
@@ -46,6 +55,9 @@ const DEFAULT_LABELS: Required<ArticleFilterBarLabels> = {
   topicsAriaLabel: "Filter articles by topic",
   yearsAriaLabel: "Filter articles by year",
   sortAriaLabel: "Sort articles",
+  showCount: (size) => `Show ${size}`,
+  showAll: "Show all",
+  pageSizeAriaLabel: "Number of articles shown",
 };
 
 const ChevronIcon = ({ className }: { className?: string }) => (
@@ -103,6 +115,7 @@ const handleListKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
 interface FilterControlProps {
   label: string;
   ariaLabel: string;
+  className?: string;
   classNames?: ArticleFilterBarClassNames;
   children: ReactNode;
 }
@@ -110,6 +123,7 @@ interface FilterControlProps {
 const FilterControl = ({
   label,
   ariaLabel,
+  className,
   classNames,
   children,
 }: FilterControlProps) => {
@@ -117,7 +131,13 @@ const FilterControl = ({
   const labelId = useId();
 
   return (
-    <div className={cx("article-filter-bar__control", classNames?.control)}>
+    <div
+      className={cx(
+        "article-filter-bar__control",
+        className,
+        classNames?.control,
+      )}
+    >
       <Popover.Root open={open} onOpenChange={setOpen}>
         <Popover.Trigger
           className={cx("article-filter-bar__trigger", classNames?.trigger)}
@@ -178,7 +198,10 @@ export interface ArticleFilterBarProps {
   labels?: ArticleFilterBarLabels;
   /** Sort options with site-specific wording, e.g. a translated set. */
   sortOptions?: { value: SortKey; label: string }[];
-  /** Rendered last in the row, after Sort — e.g. the site's own Reset button. */
+  pageSize?: PageSize;
+  pageSizeOptions?: PageSize[];
+  onPageSizeChange?: (size: PageSize) => void;
+  /** Rendered last in the row, after Sort and Show — e.g. the site's own Reset button. */
   children?: ReactNode;
 }
 
@@ -195,6 +218,9 @@ export const ArticleFilterBar = ({
   classNames,
   labels,
   sortOptions = SORT_OPTIONS,
+  pageSize = DEFAULT_PAGE_SIZE,
+  pageSizeOptions,
+  onPageSizeChange,
   children,
 }: ArticleFilterBarProps) => {
   const text = { ...DEFAULT_LABELS, ...labels };
@@ -203,6 +229,11 @@ export const ArticleFilterBar = ({
   // empty, so a site whose Tags relation is unpopulated just gets year + sort.
   const showTopics = topicOptions.length > 1;
   const showYears = yearOptions.length > 1;
+  const showPageSize =
+    onPageSizeChange !== undefined && (pageSizeOptions?.length ?? 0) > 1;
+
+  const pageSizeLabel = (size: PageSize) =>
+    size === "all" ? text.showAll : text.showCount(size);
 
   const topicsLabel = (() => {
     if (selectedTopics.length === 0) return text.allTopics;
@@ -331,6 +362,35 @@ export const ArticleFilterBar = ({
           </button>
         ))}
       </FilterControl>
+
+      {showPageSize && (
+        <FilterControl
+          label={pageSizeLabel(pageSize)}
+          ariaLabel={text.pageSizeAriaLabel}
+          className="article-filter-bar__control--show"
+          classNames={classNames}
+        >
+          {pageSizeOptions?.map((size) => (
+            <button
+              type="button"
+              key={String(size)}
+              role="option"
+              aria-selected={pageSize === size}
+              className={optionClass}
+              onClick={() => onPageSizeChange?.(size)}
+            >
+              <span
+                className={cx(
+                  "article-filter-bar__option-label",
+                  classNames?.optionLabel,
+                )}
+              >
+                {pageSizeLabel(size)}
+              </span>
+            </button>
+          ))}
+        </FilterControl>
+      )}
 
       {children}
     </div>

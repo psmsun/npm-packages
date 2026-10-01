@@ -18,6 +18,21 @@ export const SORT_OPTIONS: SortOption[] = [
 
 export const DEFAULT_SORT: SortKey = "newest";
 
+export type PageSize = number | "all";
+export const PAGE_SIZES: readonly number[] = [30, 60, 90];
+export const DEFAULT_PAGE_SIZE = 30;
+
+/** Sizes strictly below total, then "all"; empty when the smallest size already shows everything. */
+export const derivePageSizeOptions = (total: number): PageSize[] => {
+  const sizes = PAGE_SIZES.filter((size) => size < total);
+  return sizes.length === 0 ? [] : [...sizes, "all"];
+};
+
+export const limitArticles = <T,>(
+  articles: readonly T[],
+  pageSize: PageSize,
+): T[] => articles.slice(0, pageSize === "all" ? undefined : pageSize);
+
 export interface TopicOption {
   slug: string;
   name: string;
@@ -199,6 +214,7 @@ export interface FilterState {
   topics: string[];
   year: string;
   sort: SortKey;
+  pageSize?: PageSize;
 }
 
 /** Values not present in the current data are dropped, not applied. */
@@ -206,6 +222,7 @@ export const parseFilterParams = (
   search: string,
   knownTopics: readonly string[],
   knownYears: readonly string[],
+  knownPageSizes?: readonly PageSize[],
 ): Partial<FilterState> => {
   const params = new URLSearchParams(search);
   const state: Partial<FilterState> = {};
@@ -224,12 +241,22 @@ export const parseFilterParams = (
   if (SORT_OPTIONS.some((option) => option.value === sort)) {
     state.sort = sort as SortKey;
   }
+
+  if (knownPageSizes) {
+    const show = params.get("show");
+    // String match, not Number(), so ?show=060 and ?show=6e1 are dropped.
+    const pageSize = knownPageSizes.find((size) => String(size) === show);
+    if (pageSize !== undefined) state.pageSize = pageSize;
+  }
   return state;
 };
 
 /** True when anything differs from the defaults — unlike isFiltered, sort counts. */
 export const canResetFilters = (state: FilterState): boolean =>
-  state.topics.length > 0 || state.year !== "" || state.sort !== DEFAULT_SORT;
+  state.topics.length > 0 ||
+  state.year !== "" ||
+  state.sort !== DEFAULT_SORT ||
+  (state.pageSize !== undefined && state.pageSize !== DEFAULT_PAGE_SIZE);
 
 /** Defaults write no param, so an unfiltered list keeps a clean URL. */
 export const buildFilterSearch = (search: string, state: FilterState): string => {
@@ -243,6 +270,10 @@ export const buildFilterSearch = (search: string, state: FilterState): string =>
 
   if (state.sort !== DEFAULT_SORT) params.set("sort", state.sort);
   else params.delete("sort");
+
+  // No pageSize means the caller does not own show, so it is left alone.
+  if (state.pageSize === DEFAULT_PAGE_SIZE) params.delete("show");
+  else if (state.pageSize !== undefined) params.set("show", String(state.pageSize));
 
   const query = params.toString();
   return query ? `?${query}` : "";

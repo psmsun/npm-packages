@@ -20,12 +20,14 @@
   flex-direction: column;
   gap: 1rem;
   margin-block-end: 2rem;
+  font-size: 0.875em;
 }
 
 @media (width >= 640px) {
   .article-filter-bar {
     flex-direction: row;
-    gap: 2rem;
+    flex-wrap: wrap;
+    gap: 1rem 2rem;
   }
 }
 
@@ -61,6 +63,11 @@
   .article-filter-bar__control:not(:first-child) {
     inline-size: 12.5rem;
   }
+
+  /* Doubled: :not(:first-child) above is (0,2,0) and would otherwise win. */
+  .article-filter-bar__control.article-filter-bar__control--show {
+    inline-size: 9rem;
+  }
 }
 
 .article-filter-bar__icon {
@@ -79,6 +86,7 @@
   max-block-size: 22.5rem;
   overflow-y: auto;
   padding-block: 0.5rem;
+  font-size: 0.875em;
   background: var(--background, #fff);
   color: inherit;
   box-shadow: 0 8px 24px rgb(0 0 0 / 12%);
