@@ -7,6 +7,7 @@ Monorepo for Prismetic's published npm packages. Managed with [npm workspaces](h
 | Package | Description |
 | --- | --- |
 | [`@prismetic/article-filters`](./article-filters) | Topic / year / sort filtering for CMS article lists — React 19 / Next 16 |
+| [`@prismetic/date-utils`](./date-utils) | Date and time formatting with moment's tokens, without moment, plus `Intl` for other locales |
 | [`@prismetic/form-utils`](./form-utils) | NeverBounce email gating for embedded ActiveCampaign forms — React 19 / Next 16 |
 | [`@prismetic/i18n-utils`](./i18n-utils) | Locale config, locale-aware paths and a React locale provider for sites with more than one locale — React 18+ / Next 16 |
 | [`@prismetic/link-utils`](./link-utils) | CMS href normalisation — bare domains, external targets, static-file prefetch |

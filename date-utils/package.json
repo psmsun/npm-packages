@@ -1,0 +1,51 @@
+{
+  "name": "@prismetic/date-utils",
+  "version": "1.0.0",
+  "description": "Date and time formatting with moment's tokens, without moment, plus Intl output for other locales",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/psmsun/npm-packages.git",
+    "directory": "date-utils"
+  },
+  "homepage": "https://github.com/psmsun/npm-packages/tree/main/date-utils#readme",
+  "bugs": {
+    "url": "https://github.com/psmsun/npm-packages/issues"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "prepublishOnly": "vitest run && tsc"
+  },
+  "devDependencies": {
+    "moment": "2.30.1",
+    "typescript": "^6.0.3",
+    "vitest": "^3.2.4"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "date",
+    "time",
+    "format",
+    "moment",
+    "intl",
+    "cms",
+    "strapi",
+    "nextjs"
+  ],
+  "license": "MIT"
+}

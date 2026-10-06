@@ -5,6 +5,7 @@
   "type": "module",
   "workspaces": [
     "article-filters",
+    "date-utils",
     "form-utils",
     "i18n-utils",
     "link-utils",
