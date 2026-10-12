@@ -1,0 +1,50 @@
+{
+  "name": "@prismetic/social-embed-utils",
+  "version": "1.0.0",
+  "description": "LinkedIn, Instagram and YouTube embed URLs from CMS-pasted snippets, plus Instagram's crop constants and height messages",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/psmsun/npm-packages.git",
+    "directory": "social-embed-utils"
+  },
+  "homepage": "https://github.com/psmsun/npm-packages/tree/main/social-embed-utils#readme",
+  "bugs": {
+    "url": "https://github.com/psmsun/npm-packages/issues"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "prepublishOnly": "vitest run && tsc"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3",
+    "vitest": "^3.2.4"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "linkedin",
+    "instagram",
+    "youtube",
+    "embed",
+    "iframe",
+    "social",
+    "cms",
+    "strapi"
+  ],
+  "license": "MIT"
+}

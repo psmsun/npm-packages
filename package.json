@@ -11,6 +11,7 @@
     "link-utils",
     "next-preview-core",
     "seo-utils",
+    "social-embed-utils",
     "text-utils",
     "video-utils"
   ],
