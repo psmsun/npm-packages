@@ -1,7 +1,7 @@
 {
   "name": "@prismetic/social-embed-utils",
-  "version": "1.0.0",
-  "description": "LinkedIn, Instagram and YouTube embed URLs from CMS-pasted snippets, plus Instagram's crop constants and height messages",
+  "version": "1.1.0",
+  "description": "LinkedIn, Instagram and YouTube embed URLs from CMS-pasted snippets, Instagram's crop and height messages, and a YouTube click-to-play web component",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -9,6 +9,14 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./youtube-cover": {
+      "types": "./dist/youtubeCover.d.ts",
+      "default": "./dist/youtubeCover.js"
+    },
+    "./jsx": {
+      "types": "./dist/jsx.d.ts",
+      "default": "./dist/jsx.js"
     }
   },
   "files": [
@@ -26,10 +34,12 @@
   },
   "scripts": {
     "build": "tsc",
-    "test": "vitest run",
-    "prepublishOnly": "vitest run && tsc"
+    "test": "vitest run --typecheck --typecheck.tsconfig tsconfig.typecheck.json",
+    "prepublishOnly": "npm test && tsc"
   },
   "devDependencies": {
+    "@types/react": "^19.2.17",
+    "happy-dom": "20.14.5",
     "typescript": "^6.0.3",
     "vitest": "^3.2.4"
   },
@@ -44,7 +54,9 @@
     "iframe",
     "social",
     "cms",
-    "strapi"
+    "strapi",
+    "web-component",
+    "custom-element"
   ],
   "license": "MIT"
 }

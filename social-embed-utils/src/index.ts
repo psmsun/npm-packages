@@ -7,4 +7,9 @@ export {
 } from "./instagram.js";
 export { linkedInEmbedSrc } from "./linkedin.js";
 export { socialEmbedSrc } from "./socialEmbedSrc.js";
-export { youtubeEmbedSrc } from "./youtube.js";
+export {
+  isMissingYoutubeThumbnail,
+  youtubeEmbedSrc,
+  youtubePlayerSrc,
+  youtubeThumbnailSrc,
+} from "./youtube.js";

@@ -4,15 +4,19 @@ import {
   linkedInSrc,
   pilotMeasure,
 } from "./__fixtures__/SocialMediaPosts-pilot.js";
+import { youtubeThumbnail } from "./__fixtures__/youtube-stopgap.js";
 import {
   INSTAGRAM_CROP,
   INSTAGRAM_PLACEHOLDER_HEIGHT,
   instagramCardHeight,
   instagramEmbedSrc,
+  isMissingYoutubeThumbnail,
   linkedInEmbedSrc,
   readInstagramMeasure,
   socialEmbedSrc,
   youtubeEmbedSrc,
+  youtubePlayerSrc,
+  youtubeThumbnailSrc,
 } from "./index.js";
 
 const embed = (urn: string) =>
@@ -133,6 +137,81 @@ describe("youtubeEmbedSrc", () => {
   it("returns null for null and undefined", () => {
     expect(youtubeEmbedSrc(null)).toBeNull();
     expect(youtubeEmbedSrc(undefined)).toBeNull();
+  });
+});
+
+// The five CMS videos, as [url, id].
+const CMS_VIDEOS: [string, string][] = [
+  ["https://www.youtube.com/watch?v=mFX_vPKZ7hE", "mFX_vPKZ7hE"],
+  ["https://www.youtube.com/watch?v=aiO3E5Ea0mo", "aiO3E5Ea0mo"],
+  ["https://www.youtube.com/shorts/I3ye9D7gSRo", "I3ye9D7gSRo"],
+  ["https://www.youtube.com/watch?v=2iAyiVMdhSQ", "2iAyiVMdhSQ"],
+  ["https://www.youtube.com/watch?v=xtzeAywVyNw", "xtzeAywVyNw"],
+];
+
+const SIZES = ["maxresdefault", "hqdefault"] as const;
+
+const YOUTUBE_REJECTED = YOUTUBE.filter(([, , expected]) => expected === null);
+
+describe("youtubeThumbnailSrc", () => {
+  it.each(CMS_VIDEOS)("matches the pharmtech stopgap for %s", (url, id) => {
+    for (const size of SIZES) {
+      expect(youtubeThumbnailSrc(url, size)).toBe(youtubeThumbnail(youtubeEmbedSrc(url)!, size));
+      expect(youtubeThumbnailSrc(url, size)).toBe(`https://i.ytimg.com/vi/${id}/${size}.jpg`);
+    }
+  });
+
+  it("defaults to maxresdefault", () => {
+    expect(youtubeThumbnailSrc("https://youtu.be/mFX_vPKZ7hE")).toBe(
+      "https://i.ytimg.com/vi/mFX_vPKZ7hE/maxresdefault.jpg",
+    );
+  });
+
+  it.each(["sddefault", "../../evil", "", "hqdefault.jpg?x="])(
+    "falls back to maxresdefault for the unknown size %j",
+    (size) => {
+      expect(youtubeThumbnailSrc("https://youtu.be/mFX_vPKZ7hE", size as never)).toBe(
+        "https://i.ytimg.com/vi/mFX_vPKZ7hE/maxresdefault.jpg",
+      );
+    },
+  );
+
+  it.each(YOUTUBE_REJECTED)("returns null for %s", (_, pasted) => {
+    expect(youtubeThumbnailSrc(pasted)).toBeNull();
+    expect(youtubeThumbnailSrc(pasted, "hqdefault")).toBeNull();
+  });
+
+  it("returns null for null and undefined", () => {
+    expect(youtubeThumbnailSrc(null)).toBeNull();
+    expect(youtubeThumbnailSrc(undefined, "hqdefault")).toBeNull();
+  });
+});
+
+describe("youtubePlayerSrc", () => {
+  it.each(CMS_VIDEOS)("matches the pharmtech stopgap for %s", (url, id) => {
+    expect(youtubePlayerSrc(url)).toBe(`${youtubeEmbedSrc(url)}?autoplay=1&rel=0`);
+    expect(youtubePlayerSrc(url)).toBe(`https://www.youtube.com/embed/${id}?autoplay=1&rel=0`);
+  });
+
+  it.each(YOUTUBE_REJECTED)("returns null for %s", (_, pasted) => {
+    expect(youtubePlayerSrc(pasted)).toBeNull();
+  });
+
+  it("returns null for null and undefined", () => {
+    expect(youtubePlayerSrc(null)).toBeNull();
+    expect(youtubePlayerSrc(undefined)).toBeNull();
+  });
+});
+
+describe("isMissingYoutubeThumbnail", () => {
+  it.each([
+    [0, true],
+    [120, true],
+    [121, false],
+    [480, false],
+    [1280, false],
+  ])("naturalWidth %i is missing: %s", (naturalWidth, missing) => {
+    expect(isMissingYoutubeThumbnail({ naturalWidth })).toBe(missing);
   });
 });
 

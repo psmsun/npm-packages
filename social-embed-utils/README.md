@@ -11,6 +11,10 @@ code, a YouTube video or short URL, YouTube's embed code) into an iframe `src`
 on the network's own host. Also carries Instagram's
 crop constants and a reader for the height messages its frame posts.
 
+The one piece of shared UI is [`<youtube-cover>`](#youtube-cover), a YouTube
+thumbnail with a play button that loads the real player only on click.
+Everything else is still strings and numbers.
+
 ## Install
 
 ```bash
@@ -22,13 +26,14 @@ npm install @prismetic/social-embed-utils
 | | |
 | --- | --- |
 | Dependencies | none |
-| Peer dependencies | **none at all**, not even React |
+| Peer dependencies | **none at all**, not even React. `/jsx` needs `@types/react` >= 19 in the site, for types only |
 | Module format | ESM |
-| Side effects | none at import; `package.json` declares `"sideEffects": false` |
-| Environment | Node or browser; no DOM APIs used |
+| Side effects | none at import; `package.json` declares `"sideEffects": false`. `defineYoutubeCover` registers the element only when called |
+| Environment | the main entry uses no DOM APIs and runs in Node or a browser. `/youtube-cover` needs a browser; `defineYoutubeCover` is a no-op where `customElements` doesn't exist |
+| Entry points | `@prismetic/social-embed-utils` (URL helpers, Instagram crop), `@prismetic/social-embed-utils/youtube-cover` (`defineYoutubeCover`), `@prismetic/social-embed-utils/jsx` (types only: `<youtube-cover>` in React's `JSX.IntrinsicElements`) |
 
-The UI, styling and CMS mapping stay in the site. This package only computes
-strings and numbers.
+Apart from `<youtube-cover>`, the UI, styling and CMS mapping stay in the site,
+and the package only computes strings and numbers.
 
 ## Quick start
 
@@ -219,6 +224,52 @@ of `A–Z a–z 0–9 _ -`.
 - **Why `videoseries` is rejected.** It is the 11-character path of a playlist
   embed, not a video id.
 
+### `youtubeThumbnailSrc(pasted, size?)`
+
+```ts
+youtubeThumbnailSrc(
+  pasted: string | null | undefined,
+  size?: "maxresdefault" | "hqdefault", // default "maxresdefault"
+): string | null
+```
+
+Returns `https://i.ytimg.com/vi/<id>/<size>.jpg`, or `null` wherever
+`youtubeEmbedSrc` returns `null`. Any `size` other than `"hqdefault"` at
+runtime gives `maxresdefault`, so a bad value can't change the path.
+
+```ts
+youtubeThumbnailSrc("https://www.youtube.com/shorts/I3ye9D7gSRo");
+// "https://i.ytimg.com/vi/I3ye9D7gSRo/maxresdefault.jpg"
+
+youtubeThumbnailSrc("https://youtu.be/mFX_vPKZ7hE", "hqdefault");
+// "https://i.ytimg.com/vi/mFX_vPKZ7hE/hqdefault.jpg"
+```
+
+Every video has `hqdefault` (480x360, letterboxed for 16:9). `maxresdefault`
+(1280x720) exists only for videos uploaded in HD; see
+`isMissingYoutubeThumbnail`.
+
+### `youtubePlayerSrc(pasted)`
+
+```ts
+youtubePlayerSrc(pasted: string | null | undefined): string | null
+```
+
+Returns `https://www.youtube.com/embed/<id>?autoplay=1&rel=0`, the player to
+mount after a click, or `null` wherever `youtubeEmbedSrc` returns `null`.
+`rel=0` limits the end screen's suggestions to the same channel.
+
+### `isMissingYoutubeThumbnail(image)`
+
+```ts
+isMissingYoutubeThumbnail(image: { naturalWidth: number }): boolean
+```
+
+`true` when `image.naturalWidth <= 120`. For a video with no `maxresdefault`,
+i.ytimg answers with HTTP 404 and a 120x90 grey placeholder, and an `<img>`'s
+`load` event still fires on it. Call it from `onLoad` and switch to
+`hqdefault` when it returns `true`; switch at most once.
+
 ### `readInstagramMeasure(event)`
 
 ```ts
@@ -269,6 +320,133 @@ instagramCardHeight(INSTAGRAM_PLACEHOLDER_HEIGHT); // 352
 instagramCardHeight(812);                          // 604
 ```
 
+## `<youtube-cover>`
+
+A YouTube thumbnail with one shared play button. The real player iframe mounts
+only on click, which hides YouTube's pre-play overlay (title, share, watch
+later, "Watch on YouTube"); embed parameters can no longer turn that off.
+
+### `defineYoutubeCover(tagName?)`
+
+```ts
+import { defineYoutubeCover } from "@prismetic/social-embed-utils/youtube-cover";
+
+defineYoutubeCover(tagName?: string): void // default "youtube-cover"
+```
+
+Registers the element. Call it in the browser, before or after the elements
+are in the page: elements already in the DOM upgrade when it runs.
+
+- **Idempotent.** A name that is already registered is left alone, whichever
+  class holds it, so every component that uses the element can call it.
+- **Server-safe.** Importing the entry touches no DOM API, and the call does
+  nothing where `customElements` doesn't exist.
+
+### Attributes
+
+| attribute | | default |
+| --- | --- | --- |
+| `url` | anything `youtubeEmbedSrc` accepts: a watch, short, live or `youtu.be` URL, or YouTube's embed code | none: renders nothing |
+| `label` | the play button's `aria-label` and the player's `title` | `"Play video"`, also for an empty label |
+
+Both are attributes only; the element has no `url` or `label` property. React 19
+then sets them as attributes, the same as the server-rendered HTML.
+
+### Behaviour
+
+- **Cover.** A valid `url` renders a `<button type="button" aria-label="<label>">`
+  holding the `maxresdefault` thumbnail (`alt=""`, lazy, async decoding) and a
+  play icon. A missing or invalid `url` renders nothing.
+- **Thumbnail fallback, once.** When the thumbnail errors, or loads as the
+  120px placeholder (see `isMissingYoutubeThumbnail`), it switches to
+  `hqdefault`. It never switches again, so a deleted video can't loop.
+- **Click to play.** The button is replaced by
+  `<iframe src="https://www.youtube.com/embed/<id>?autoplay=1&rel=0" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen title="<label>">`,
+  filling the element with no border.
+- **Focus.** Focus moves to the player (`preventScroll`), so a keyboard user
+  isn't dropped on `<body>`.
+- **One player at a time.** Starting a cover sends every other playing cover
+  back to its thumbnail, including covers inside other shadow roots.
+- **Event.** Each start dispatches `youtube-cover-play` on the element, with
+  `bubbles: true`, `composed: true` and `detail: { id }` (the 11-character
+  video id):
+
+  ```ts
+  document.addEventListener("youtube-cover-play", (event) => {
+    const { id } = (event as CustomEvent<{ id: string }>).detail;
+    analytics.track("video_play", { id });
+  });
+  ```
+
+- **Attribute changes.** A new `url` goes back to the cover for the new video,
+  even while playing. A new `label` updates the `aria-label`, or the player's
+  `title` in place without stopping playback.
+- **Size.** The element is `display: block`, `width: 100%`, `height: 100%`,
+  `position: relative` with `overflow: hidden`, so the site's own box sets the
+  aspect ratio. The `hidden` attribute hides it.
+
+### CSS custom properties
+
+Set them on the element or any ancestor; they reach into the shadow root.
+
+| property | default |
+| --- | --- |
+| `--youtube-cover-button-bg` | `rgba(0, 0, 0, 0.6)` |
+| `--youtube-cover-button-radius` | `9999px` |
+| `--youtube-cover-button-size` | `56px` |
+| `--youtube-cover-button-backdrop` | `none` (a `backdrop-filter` value) |
+| `--youtube-cover-icon-color` | `#fff` |
+| `--youtube-cover-icon-size` | `20px` |
+| `--youtube-cover-focus-color` | `#fff` (the 2px focus ring, inset 4px) |
+
+```css
+/* A round, blurred button in the brand colour */
+.social-feed youtube-cover {
+  --youtube-cover-button-bg: color-mix(in srgb, var(--brand) 50%, transparent);
+  --youtube-cover-button-backdrop: blur(4px);
+}
+
+/* A square black button */
+.video-library youtube-cover {
+  --youtube-cover-button-radius: 0;
+  --youtube-cover-button-bg: #000;
+  --youtube-cover-button-size: 64px;
+  --youtube-cover-icon-size: 24px;
+}
+```
+
+### Next.js
+
+```tsx
+"use client";
+
+import type {} from "@prismetic/social-embed-utils/jsx";
+import { defineYoutubeCover } from "@prismetic/social-embed-utils/youtube-cover";
+import { useEffect } from "react";
+
+export const YoutubeVideo = ({ url, title }: { url: string; title: string }) => {
+  useEffect(() => {
+    defineYoutubeCover();
+  }, []);
+
+  // The site's own 16:9 box; the element fills it.
+  return (
+    <div className="aspect-video overflow-hidden rounded-xl bg-black">
+      <youtube-cover url={url} label={`Play ${title}`} />
+    </div>
+  );
+};
+```
+
+The server renders `<youtube-cover url="…" label="…">` as an empty element
+inside the box, and it becomes the cover once `defineYoutubeCover` runs.
+
+`import type {} from "@prismetic/social-embed-utils/jsx"` adds `youtube-cover`
+to React's `JSX.IntrinsicElements`, with `url` and `label` typed as optional
+strings beside the usual HTML props. It emits no code. To declare it once for
+the whole site instead, put the same line in a `.d.ts` file that the site's
+`tsconfig.json` includes.
+
 ## Differences from the pharmtech pilot
 
 - **Own host only.** Output is always rebuilt on `www.linkedin.com` or
@@ -299,11 +477,25 @@ instagramCardHeight(812);                          // 604
   Playlists, channels and old `/v/<id>` URLs are not handled.
 - Only public posts embed. A private or members-only post renders an empty frame.
 - No network access and no check that a post exists.
+- `<youtube-cover>`: iOS Safari may need a second tap inside the player before
+  sound plays.
+- `<youtube-cover>`: a video whose owner disabled embedding shows YouTube's
+  "Video unavailable" after the click; the cover can't tell beforehand.
+- The `/jsx` types cover the default tag name `youtube-cover` only. A site that
+  calls `defineYoutubeCover("other-name")` declares that name itself.
+
+## Upgrading to 1.1
+
+Purely additive; nothing changes for 1.0 callers. Every 1.0 export keeps its
+signature and output. New: `youtubeThumbnailSrc`, `youtubePlayerSrc` and
+`isMissingYoutubeThumbnail` on the main entry, the `/youtube-cover` entry with
+`defineYoutubeCover`, and the types-only `/jsx` entry. The main entry still
+uses no DOM APIs, and the package still has no dependencies.
 
 ## Development
 
 ```bash
-npm test -w social-embed-utils     # vitest — 135 tests, under 1 s
+npm test -w social-embed-utils     # vitest — 227 tests across 4 files, 3 type tests included, under 1 s
 npm run build -w social-embed-utils
 ```
 
@@ -314,3 +506,13 @@ Each difference listed above has its own test that asserts the pilot's output
 and the package's output side by side. The pilot had no YouTube parsing, so the
 YouTube tests pin the real CMS values, every accepted shape and each rejected
 input directly.
+
+`src/__fixtures__/youtube-stopgap.ts` is pharmtech's thumbnail helper from the
+click-to-play stopgap, copied byte-for-byte apart from `export`.
+`youtubeThumbnailSrc` must match it, and `youtubePlayerSrc` must match the
+stopgap's `` `${src}?autoplay=1&rel=0` ``, for every CMS video.
+
+`src/youtube-cover.test.ts` runs `<youtube-cover>` in happy-dom with iframe
+page loading switched off, so no test touches the network.
+`src/youtube-cover.ssr.test.ts` imports the entry in plain Node, and
+`src/jsx.test-d.ts` checks the `/jsx` types through `--typecheck`.

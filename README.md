@@ -13,7 +13,7 @@ Monorepo for Prismetic's published npm packages. Managed with [npm workspaces](h
 | [`@prismetic/link-utils`](./link-utils) | CMS href normalisation — bare domains, external targets, static-file prefetch |
 | [`@prismetic/next-preview-core`](./next-preview-core) | Hybrid static/preview architecture for Next.js + Strapi — React Query provider and live-preview HOC — React 18+ / TanStack Query 5 |
 | [`@prismetic/seo-utils`](./seo-utils) | Next.js metadata, JSON-LD and sitemap noIndex helpers for Strapi-backed sites — React 19 / Next 16 |
-| [`@prismetic/social-embed-utils`](./social-embed-utils) | LinkedIn, Instagram and YouTube embed URLs from CMS-pasted snippets, plus Instagram's crop and height messages |
+| [`@prismetic/social-embed-utils`](./social-embed-utils) | LinkedIn, Instagram and YouTube embed URLs from CMS-pasted snippets, Instagram's crop and height messages, and a YouTube click-to-play web component |
 | [`@prismetic/text-utils`](./text-utils) | Render `[label](url)` links in plain-text CMS fields; demote rich-text `<h1>`s — React 19 / Next 16 |
 | [`@prismetic/video-utils`](./video-utils) | YouTube and VK video ID extraction utilities |
 
