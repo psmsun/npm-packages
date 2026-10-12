@@ -9,11 +9,12 @@ const PLAY_EVENT = "youtube-cover-play";
 const ALLOW = "autoplay; encrypted-media; picture-in-picture; fullscreen";
 const SVG_NS = "http://www.w3.org/2000/svg";
 
+// The focus ring is a positioned ::after because the positioned thumbnail paints over the button's own outline.
 const CSS = `
 :host { display: block; position: relative; width: 100%; height: 100%; overflow: hidden; }
 :host([hidden]) { display: none; }
 button { all: unset; position: absolute; inset: 0; display: grid; place-items: center; cursor: pointer; }
-button:focus-visible { outline: 2px solid var(--youtube-cover-focus-color, #fff); outline-offset: -4px; }
+button:focus-visible::after { content: ""; position: absolute; inset: 4px; border: 2px solid var(--youtube-cover-focus-color, #fff); border-radius: inherit; pointer-events: none; }
 img, iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
 img { object-fit: cover; }
 .play { position: relative; display: grid; place-items: center;

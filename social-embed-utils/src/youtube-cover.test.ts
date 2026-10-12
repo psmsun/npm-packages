@@ -201,6 +201,16 @@ describe("rendering", () => {
       expect(css).toContain(`var(${property},`);
     }
   });
+
+  it("draws the focus ring on a positioned ::after, not as an outline the thumbnail paints over", () => {
+    const css = parts(cover({ url: VIDEO })).root.querySelector("style")!.textContent!;
+    const ring = css.match(/button:focus-visible::after \{([^}]*)\}/)?.[1] ?? "";
+    expect(ring).toContain('content: ""');
+    expect(ring).toContain("position: absolute");
+    expect(ring).toContain("inset: 4px");
+    expect(ring).toContain("border: 2px solid var(--youtube-cover-focus-color, #fff)");
+    expect(css).not.toMatch(/outline/);
+  });
 });
 
 describe("thumbnail fallback", () => {

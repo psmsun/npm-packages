@@ -495,7 +495,7 @@ uses no DOM APIs, and the package still has no dependencies.
 ## Development
 
 ```bash
-npm test -w social-embed-utils     # vitest — 227 tests across 4 files, 3 type tests included, under 1 s
+npm test -w social-embed-utils     # vitest — 228 tests across 4 files, 3 type tests included, under 1 s
 npm run build -w social-embed-utils
 ```
 
