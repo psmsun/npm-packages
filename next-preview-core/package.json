@@ -1,6 +1,6 @@
 {
   "name": "@prismetic/next-preview-core",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Hybrid static/preview architecture for Next.js + Strapi projects",
   "author": "Prismetic Group FZ LLC",
   "main": "./dist/index.js",

@@ -13,7 +13,7 @@ import { useState, useEffect } from "react";
  * fetched once will be served from the cache on subsequent page navigations.
  *
  * @param {number} [staleTime=300000] - How long (ms) cached data is considered fresh. Default: 5 minutes.
- * @param {boolean} [refetchOnWindowFocus=false] - Whether to refetch when the browser tab regains focus. Set to true in preview to auto-refresh after editing in Strapi.
+ * @param {boolean} [refetchOnWindowFocus=false] - Whether to refetch active queries when the browser tab regains focus.
  */
 export function PreviewProviders({
   children,
