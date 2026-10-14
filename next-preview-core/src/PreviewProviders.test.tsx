@@ -76,53 +76,6 @@ describe("PreviewProviders (1.0.16 behaviour)", () => {
     });
   });
 
-  it("T6 with refetchOnWindowFocus: focus and a visible visibilitychange refetch active queries, a hidden one does not", async () => {
-    render(<PreviewProviders refetchOnWindowFocus><Probe /></PreviewProviders>);
-    await flush();
-    const inactive = vi.fn(async () => "inactive");
-    await act(() => clients[0].prefetchQuery({ queryKey: ["inactive"], queryFn: inactive }));
-    expect(fetcher).toHaveBeenCalledTimes(1);
-
-    focusWindow();
-    await flush();
-    expect(fetcher).toHaveBeenCalledTimes(2);
-
-    setVisibility("visible");
-    changeVisibility();
-    await flush();
-    expect(fetcher).toHaveBeenCalledTimes(3);
-
-    setVisibility("hidden");
-    changeVisibility();
-    await flush();
-    expect(fetcher).toHaveBeenCalledTimes(3);
-    expect(inactive).toHaveBeenCalledTimes(1);
-  });
-
-  it("T6 with refetchOnWindowFocus: removes both listeners on unmount", async () => {
-    const addWindow = vi.spyOn(window, "addEventListener");
-    const removeWindow = vi.spyOn(window, "removeEventListener");
-    const addDocument = vi.spyOn(document, "addEventListener");
-    const removeDocument = vi.spyOn(document, "removeEventListener");
-    render(<PreviewProviders refetchOnWindowFocus><Probe /></PreviewProviders>);
-    await flush();
-    const invalidate = vi.spyOn(clients[0], "invalidateQueries");
-    const onFocus = addWindow.mock.calls.find(([type]) => type === "focus")?.[1];
-    const onVisibility = addDocument.mock.calls.find(([type]) => type === "visibilitychange")?.[1];
-    expect(onFocus).toBeTypeOf("function");
-    expect(onVisibility).toBeTypeOf("function");
-
-    unmount();
-    expect(removeWindow).toHaveBeenCalledWith("focus", onFocus);
-    expect(removeDocument).toHaveBeenCalledWith("visibilitychange", onVisibility);
-
-    focusWindow();
-    changeVisibility();
-    await flush();
-    expect(invalidate).not.toHaveBeenCalled();
-    expect(fetcher).toHaveBeenCalledTimes(1);
-  });
-
   it("T7 with refetchOnWindowFocus false: no refetch on either event, even once the data is stale", async () => {
     render(<PreviewProviders><Probe /></PreviewProviders>);
     await flush();
@@ -147,5 +100,65 @@ describe("PreviewProviders (1.0.16 behaviour)", () => {
     render(<PreviewProviders refetchOnWindowFocus><Probe /></PreviewProviders>);
     expect(clients.length).toBeGreaterThanOrEqual(3);
     expect(new Set(clients).size).toBe(1);
+  });
+});
+
+describe("PreviewProviders refetchOnWindowFocus (since 1.1.2)", () => {
+  it("T6 a visible visibilitychange refetches active queries; a hidden one or a window focus does not", async () => {
+    render(<PreviewProviders refetchOnWindowFocus><Probe /></PreviewProviders>);
+    await flush();
+    const inactive = vi.fn(async () => "inactive");
+    await act(() => clients[0].prefetchQuery({ queryKey: ["inactive"], queryFn: inactive }));
+    expect(fetcher).toHaveBeenCalledTimes(1);
+
+    setVisibility("visible");
+    changeVisibility();
+    await flush();
+    expect(fetcher).toHaveBeenCalledTimes(2);
+
+    setVisibility("hidden");
+    changeVisibility();
+    await flush();
+    expect(fetcher).toHaveBeenCalledTimes(2);
+
+    setVisibility("visible");
+    focusWindow();
+    await flush();
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(inactive).toHaveBeenCalledTimes(1);
+  });
+
+  it("T6 a tab switch (visibilitychange, then focus) fetches each active query once", async () => {
+    render(<PreviewProviders refetchOnWindowFocus><Probe /></PreviewProviders>);
+    await flush();
+    fetcher.mockImplementation(() => new Promise((resolve) => setTimeout(() => resolve({ title: "Home" }), 50)));
+
+    setVisibility("visible");
+    changeVisibility();
+    focusWindow();
+    await flush(100);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it("T6 adds no window focus listener and removes the visibilitychange listener on unmount", async () => {
+    const addWindow = vi.spyOn(window, "addEventListener");
+    const addDocument = vi.spyOn(document, "addEventListener");
+    const removeDocument = vi.spyOn(document, "removeEventListener");
+    render(<PreviewProviders refetchOnWindowFocus><Probe /></PreviewProviders>);
+    await flush();
+    const invalidate = vi.spyOn(clients[0], "invalidateQueries");
+    const onVisibility = addDocument.mock.calls.find(([type]) => type === "visibilitychange")?.[1];
+    expect(addWindow.mock.calls.some(([type]) => type === "focus")).toBe(false);
+    expect(onVisibility).toBeTypeOf("function");
+
+    unmount();
+    expect(removeDocument).toHaveBeenCalledWith("visibilitychange", onVisibility);
+
+    setVisibility("visible");
+    focusWindow();
+    changeVisibility();
+    await flush();
+    expect(invalidate).not.toHaveBeenCalled();
+    expect(fetcher).toHaveBeenCalledTimes(1);
   });
 });

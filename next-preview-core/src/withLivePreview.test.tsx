@@ -427,7 +427,7 @@ describe("error state", () => {
     await flush();
     expect(fetcher).toHaveBeenCalledTimes(1);
     act(() => {
-      window.dispatchEvent(new Event("focus"));
+      document.dispatchEvent(new Event("visibilitychange", { bubbles: true }));
     });
     await flush();
     expect(fetcher).toHaveBeenCalledTimes(2);

@@ -43,10 +43,7 @@ return isPreview ? (
 
 Off by default. Without it, a reload shows the latest Strapi data.
 
-With `refetchOnWindowFocus={true}`, coming back to the preview refetches the active queries, the page on screen. Inactive cached queries, such as link-hover prefetches, are not refetched.
-
-- A tab switch fires both `visibilitychange` and `focus`, and the provider refetches on each, so every active query is fetched twice.
-- Switching back from another app fires only `focus` and fetches once.
+With `refetchOnWindowFocus={true}`, switching back to the preview tab fetches each active query once, the page on screen. Inactive cached queries, such as link-hover prefetches, are not refetched. Switching back from another app, without a tab switch, does not refetch.
 
 ### `withLivePreview(WrappedComponent, fetcherFn, cacheKeyGenerator, options?)`
 
@@ -150,7 +147,11 @@ When `fetcherFn` throws (or its promise rejects), the preview shows an error blo
 A site that calls `withLivePreview` with three arguments needs no code change. It gets the same loading, not-found and data output as with 1.0.16, except in two cases:
 
 - **The fetcher throws.** After the retry, the page shows the error block (`Preview failed to load.` and the error's message) instead of `Page not found!`, and logs `[preview] Fetch failed` once.
-- **The fetcher resolves `undefined`.** The page still shows `Page not found!`, and React Query no longer logs "Query data cannot be undefined". The empty result is now cached like any other result, for `staleTime` (5 minutes by default): coming back to the page within that time shows `Page not found!` without fetching again. A reload, or a focus refetch with `refetchOnWindowFocus={true}`, still fetches again.
+- **The fetcher resolves `undefined`.** The page still shows `Page not found!`, and React Query no longer logs "Query data cannot be undefined". The empty result is now cached like any other result, for `staleTime` (5 minutes by default): coming back to the page within that time shows `Page not found!` without fetching again. A reload, or a tab switch with `refetchOnWindowFocus={true}`, still fetches again.
+
+## Upgrading to 1.1.2
+
+Only sites that pass `refetchOnWindowFocus={true}` see a change. A tab switch now fetches each active query once instead of twice, and switching back from another app no longer refetches.
 
 ## Deployment
 
@@ -181,7 +182,7 @@ Add to your `package.json`:
 ## Development
 
 ```bash
-npm test -w next-preview-core        # vitest — 54 tests, plus 5 type tests
+npm test -w next-preview-core        # vitest — 55 tests, plus 5 type tests
 npm run build -w next-preview-core   # tsup — CJS, ESM and .d.ts in dist/
 ```
 
