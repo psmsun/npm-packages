@@ -27,6 +27,16 @@ img { object-fit: cover; }
 .play svg { width: var(--youtube-cover-icon-size, 20px); height: var(--youtube-cover-icon-size, 20px); }
 `;
 
+const coverImageSrc = (value: string | null): string | null => {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" || url.protocol === "http:" ? url.href : null;
+  } catch {
+    return null;
+  }
+};
+
 const playIcon = (): SVGSVGElement => {
   const svg = document.createElementNS(SVG_NS, "svg");
   svg.setAttribute("viewBox", "0 0 24 24");
@@ -43,12 +53,13 @@ export const defineYoutubeCover = (tagName = "youtube-cover"): void => {
 
   // Declared inside the function so that importing this module on the server never reads HTMLElement.
   class YoutubeCover extends HTMLElement {
-    // Attribute-only, no url/label properties: React 19 then sets attributes, matching the server-rendered HTML.
-    static observedAttributes = ["url", "label"];
+    // Attribute-only, no url/label/cover properties: React 19 then sets attributes, matching the server-rendered HTML.
+    static observedAttributes = ["url", "label", "cover"];
 
     private readonly root: ShadowRoot;
     private button: HTMLButtonElement | null = null;
     private frame: HTMLIFrameElement | null = null;
+    private updateCoverImage: ((src: string | null) => void) | null = null;
 
     constructor() {
       super();
@@ -73,6 +84,10 @@ export const defineYoutubeCover = (tagName = "youtube-cover"): void => {
         this.render();
         return;
       }
+      if (name === "cover") {
+        this.updateCoverImage?.(coverImageSrc(this.getAttribute("cover")));
+        return;
+      }
       this.button?.setAttribute("aria-label", this.labelText());
       this.frame?.setAttribute("title", this.labelText());
     }
@@ -94,6 +109,7 @@ export const defineYoutubeCover = (tagName = "youtube-cover"): void => {
       this.frame?.remove();
       this.button = null;
       this.frame = null;
+      this.updateCoverImage = null;
 
       const url = this.getAttribute("url");
       const id = youtubeVideoId(url);
@@ -106,19 +122,35 @@ export const defineYoutubeCover = (tagName = "youtube-cover"): void => {
       img.setAttribute("alt", "");
       img.setAttribute("loading", "lazy");
       img.setAttribute("decoding", "async");
-      img.setAttribute("src", thumbnail);
 
-      // A deleted video 404s on hqdefault too, so the swap happens at most once.
+      // A deleted video 404s on hqdefault too, so each swap happens at most once.
+      let coverImage: string | null = null;
+      let onCoverImage = false;
       let fellBack = false;
+      const showThumbnail = (src: string | null): void => {
+        coverImage = src;
+        onCoverImage = src !== null;
+        fellBack = false;
+        img.setAttribute("src", src ?? thumbnail);
+      };
       const fallBack = (): void => {
-        if (fellBack) return;
-        fellBack = true;
-        img.setAttribute("src", fallback);
+        if (onCoverImage) {
+          onCoverImage = false;
+          img.setAttribute("src", thumbnail);
+        } else if (!fellBack) {
+          fellBack = true;
+          img.setAttribute("src", fallback);
+        }
       };
       img.addEventListener("error", fallBack);
       img.addEventListener("load", () => {
-        if (isMissingYoutubeThumbnail(img)) fallBack();
+        // Only i.ytimg's missing maxres is a 120px placeholder; a small CMS image is legitimate.
+        if (!onCoverImage && isMissingYoutubeThumbnail(img)) fallBack();
       });
+      showThumbnail(coverImageSrc(this.getAttribute("cover")));
+      this.updateCoverImage = (src) => {
+        if (src !== coverImage) showThumbnail(src);
+      };
 
       const play = document.createElement("span");
       play.setAttribute("class", "play");

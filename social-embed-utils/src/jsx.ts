@@ -7,6 +7,7 @@ declare module "react" {
       "youtube-cover": React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & {
         url?: string;
         label?: string;
+        cover?: string;
       };
     }
   }

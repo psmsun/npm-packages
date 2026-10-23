@@ -12,7 +12,8 @@ on the network's own host. Also carries Instagram's
 crop constants and a reader for the height messages its frame posts.
 
 The one piece of shared UI is [`<youtube-cover>`](#youtube-cover), a YouTube
-thumbnail with a play button that loads the real player only on click.
+thumbnail (or a CMS cover image) with a play button that loads the real player
+only on click.
 Everything else is still strings and numbers.
 
 ## Install
@@ -348,18 +349,25 @@ are in the page: elements already in the DOM upgrade when it runs.
 | --- | --- | --- |
 | `url` | anything `youtubeEmbedSrc` accepts: a watch, short, live or `youtu.be` URL, or YouTube's embed code | none: renders nothing |
 | `label` | the play button's `aria-label` and the player's `title` | `"Play video"`, also for an empty label |
+| `cover` | an absolute `http:` or `https:` image URL shown instead of the YouTube thumbnail. Anything else (empty, relative, `//…`, `javascript:`, `data:`) is ignored | none: the YouTube thumbnail |
 
-Both are attributes only; the element has no `url` or `label` property. React 19
-then sets them as attributes, the same as the server-rendered HTML.
+All three are attributes only; the element has no `url`, `label` or `cover`
+property. React 19 then sets them as attributes, the same as the
+server-rendered HTML.
 
 ### Behaviour
 
 - **Cover.** A valid `url` renders a `<button type="button" aria-label="<label>">`
-  holding the `maxresdefault` thumbnail (`alt=""`, lazy, async decoding) and a
-  play icon. A missing or invalid `url` renders nothing.
-- **Thumbnail fallback, once.** When the thumbnail errors, or loads as the
-  120px placeholder (see `isMissingYoutubeThumbnail`), it switches to
-  `hqdefault`. It never switches again, so a deleted video can't loop.
+  holding an image (`alt=""`, lazy, async decoding, `object-fit: cover`) and a
+  play icon. The image is the `cover` URL when one is set, otherwise the
+  `maxresdefault` thumbnail. A missing or invalid `url` renders nothing, even
+  with a `cover`.
+- **Image fallback, each step once.** A `cover` that errors switches to
+  `maxresdefault`; a small cover is kept, because only i.ytimg's missing maxres
+  is a placeholder. When `maxresdefault` errors, or loads as the 120px
+  placeholder (see `isMissingYoutubeThumbnail`), it switches to `hqdefault`.
+  The chain is at most cover → `maxresdefault` → `hqdefault` and never goes
+  back, so a deleted video can't loop.
 - **Click to play.** The button is replaced by
   `<iframe src="https://www.youtube.com/embed/<id>?autoplay=1&rel=0" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen title="<label>">`,
   filling the element with no border.
@@ -379,8 +387,13 @@ then sets them as attributes, the same as the server-rendered HTML.
   ```
 
 - **Attribute changes.** A new `url` goes back to the cover for the new video,
-  even while playing. A new `label` updates the `aria-label`, or the player's
-  `title` in place without stopping playback.
+  even while playing, and the image chain restarts from `cover` if one is set.
+  A new `label` updates the `aria-label`, or the player's `title` in place
+  without stopping playback. A new or removed `cover` swaps the image in place
+  and restarts the chain from it; while playing, the player keeps going and the
+  new image shows when the element returns to its cover. Setting the same
+  cover again, or one ignored value for another, changes nothing, so a cover
+  that already failed isn't retried.
 - **Size.** The element is `display: block`, `width: 100%`, `height: 100%`,
   `position: relative` with `overflow: hidden`, so the site's own box sets the
   aspect ratio. The `hidden` attribute hides it.
@@ -424,7 +437,15 @@ import type {} from "@prismetic/social-embed-utils/jsx";
 import { defineYoutubeCover } from "@prismetic/social-embed-utils/youtube-cover";
 import { useEffect } from "react";
 
-export const YoutubeVideo = ({ url, title }: { url: string; title: string }) => {
+export const YoutubeVideo = ({
+  url,
+  title,
+  cover,
+}: {
+  url: string;
+  title: string;
+  cover?: string;
+}) => {
   useEffect(() => {
     defineYoutubeCover();
   }, []);
@@ -432,18 +453,19 @@ export const YoutubeVideo = ({ url, title }: { url: string; title: string }) => 
   // The site's own 16:9 box; the element fills it.
   return (
     <div className="aspect-video overflow-hidden rounded-xl bg-black">
-      <youtube-cover url={url} label={`Play ${title}`} />
+      <youtube-cover url={url} cover={cover} label={`Play ${title}`} />
     </div>
   );
 };
 ```
 
 The server renders `<youtube-cover url="…" label="…">` as an empty element
-inside the box, and it becomes the cover once `defineYoutubeCover` runs.
+inside the box, and it becomes the cover once `defineYoutubeCover` runs. React
+leaves out `cover` when it is `undefined`.
 
 `import type {} from "@prismetic/social-embed-utils/jsx"` adds `youtube-cover`
-to React's `JSX.IntrinsicElements`, with `url` and `label` typed as optional
-strings beside the usual HTML props. It emits no code. To declare it once for
+to React's `JSX.IntrinsicElements`, with `url`, `label` and `cover` typed as
+optional strings beside the usual HTML props. It emits no code. To declare it once for
 the whole site instead, put the same line in a `.d.ts` file that the site's
 `tsconfig.json` includes.
 
@@ -481,8 +503,18 @@ the whole site instead, put the same line in a `.d.ts` file that the site's
   sound plays.
 - `<youtube-cover>`: a video whose owner disabled embedding shows YouTube's
   "Video unavailable" after the click; the cover can't tell beforehand.
+- `<youtube-cover>`: `cover` must be an absolute URL. Strapi's local upload
+  provider returns relative `/uploads/…` URLs, which are ignored; the site
+  prefixes its Strapi origin first.
 - The `/jsx` types cover the default tag name `youtube-cover` only. A site that
   calls `defineYoutubeCover("other-name")` declares that name itself.
+
+## Upgrading to 1.2
+
+Purely additive; nothing changes for 1.1 callers. New: the optional `cover`
+attribute on `<youtube-cover>`, and `cover?: string` in the `/jsx` types.
+Without `cover`, the element renders, falls back and plays exactly as in 1.1.
+The package still has no dependencies.
 
 ## Upgrading to 1.1
 
@@ -495,7 +527,7 @@ uses no DOM APIs, and the package still has no dependencies.
 ## Development
 
 ```bash
-npm test -w social-embed-utils     # vitest — 228 tests across 4 files, 3 type tests included, under 1 s
+npm test -w social-embed-utils     # vitest — 260 tests across 4 files, 4 type tests included, under 1 s
 npm run build -w social-embed-utils
 ```
 

@@ -10,6 +10,8 @@ const hq = (id: string) => `https://i.ytimg.com/vi/${id}/hqdefault.jpg`;
 const player = (id: string) => `https://www.youtube.com/embed/${id}?autoplay=1&rel=0`;
 const ALLOW = "autoplay; encrypted-media; picture-in-picture; fullscreen";
 const XSS = `"><img src=x onerror=alert(1)>`;
+const COVER = "https://cdn.itegroupnews.com/KIHE_7100e96610.png";
+const OTHER_COVER = "https://cdn.itegroupnews.com/KIHE_2bd4c1e0f3.png";
 
 let errors: unknown[][];
 beforeEach(() => {
@@ -118,6 +120,7 @@ describe("rendering", () => {
     ["a channel", { url: "https://www.youtube.com/@pharmtech" }],
     ["a bare id", { url: "mFX_vPKZ7hE" }],
     ["a quote in the id", { url: `https://www.youtube.com/watch?v=mFX_vPKZ7h"` }],
+    ["a cover but no url", { cover: COVER }],
   ])("renders only the style for %s", (_, attributes) => {
     const { root } = parts(cover(attributes));
     expect([...root.children].map((child) => child.localName)).toEqual(["style"]);
@@ -181,10 +184,11 @@ describe("rendering", () => {
     expect([...root.children].map((child) => child.localName)).toEqual(["style"]);
   });
 
-  it("defines no url or label property, so React 19 sets attributes", () => {
-    const element = cover({ url: VIDEO, label: "Watch" });
+  it("defines no url, label or cover property, so React 19 sets attributes", () => {
+    const element = cover({ url: VIDEO, label: "Watch", cover: COVER });
     expect("url" in element).toBe(false);
     expect("label" in element).toBe(false);
+    expect("cover" in element).toBe(false);
   });
 
   it("styles the shadow root with every documented custom property", () => {
@@ -250,6 +254,226 @@ describe("thumbnail fallback", () => {
     img.dispatchEvent(new Event("load"));
     expect(img.getAttribute("src")).toBe(maxres("mFX_vPKZ7hE"));
     expect(writes()).toBe(0);
+  });
+});
+
+describe("cover image", () => {
+  it.each([
+    ["https", COVER],
+    ["http", "http://cdn.itegroupnews.com/KIHE_7100e96610.png"],
+  ])("shows an absolute %s cover instead of the thumbnail", (_, src) => {
+    const { button, img } = parts(cover({ url: VIDEO, cover: src }));
+    expect(img!.parentNode).toBe(button);
+    expect(img!.getAttribute("src")).toBe(src);
+    expect(img!.getAttribute("alt")).toBe("");
+    expect(img!.getAttribute("loading")).toBe("lazy");
+    expect(img!.getAttribute("decoding")).toBe("async");
+  });
+
+  it.each([
+    ["before", { cover: COVER, url: VIDEO }],
+    ["after", { url: VIDEO, cover: COVER }],
+  ])("shows the cover set %s url", (_, attributes) => {
+    expect(parts(cover(attributes)).img!.getAttribute("src")).toBe(COVER);
+  });
+
+  it.each([
+    ["an empty cover", ""],
+    ["a relative path", "/uploads/KIHE_7100e96610.png"],
+    ["a protocol-relative URL", "//cdn.itegroupnews.com/KIHE_7100e96610.png"],
+    ["javascript:", "javascript:alert(1)"],
+    ["data:", "data:image/png;base64,iVBORw0KGgo="],
+    ["ftp:", "ftp://cdn.itegroupnews.com/KIHE_7100e96610.png"],
+    ["garbage", "not a url"],
+  ])("ignores %s and shows the thumbnail", (_, src) => {
+    expect(parts(cover({ url: VIDEO, cover: src })).img!.getAttribute("src")).toBe(maxres("mFX_vPKZ7hE"));
+  });
+
+  it("uses the parsed URL, not the raw attribute", () => {
+    const img = parts(cover({ url: VIDEO, cover: " https://cdn.itegroupnews.com/KIHE 7100.png" })).img!;
+    expect(img.getAttribute("src")).toBe("https://cdn.itegroupnews.com/KIHE%207100.png");
+  });
+
+  it("keeps a cover made of markup as an encoded URL", () => {
+    const { root, img } = parts(cover({ url: VIDEO, cover: `https://cdn.example/${XSS}` }));
+    expect(root.querySelectorAll("img")).toHaveLength(1);
+    expect(root.querySelectorAll("[onerror]")).toHaveLength(0);
+    expect(img!.getAttribute("src")).toBe("https://cdn.example/%22%3E%3Cimg%20src=x%20onerror=alert(1)%3E");
+  });
+
+  it("upgrades an element that had a cover before define", () => {
+    const tag = freshTag();
+    const element = cover({ url: VIDEO, cover: COVER }, tag);
+    defineYoutubeCover(tag);
+    expect(parts(element).img!.getAttribute("src")).toBe(COVER);
+  });
+
+  it.each([1, 120])("keeps a cover that loads at %ipx", (width) => {
+    const img = parts(cover({ url: VIDEO, cover: COVER })).img!;
+    const writes = srcWrites(img);
+
+    setNaturalWidth(img, width);
+    img.dispatchEvent(new Event("load"));
+    expect(img.getAttribute("src")).toBe(COVER);
+    expect(writes()).toBe(0);
+  });
+
+  it("falls back from a broken cover to maxres, then hqdefault, and stops", () => {
+    const img = parts(cover({ url: VIDEO, cover: COVER })).img!;
+    const writes = srcWrites(img);
+
+    img.dispatchEvent(new Event("error"));
+    expect(img.getAttribute("src")).toBe(maxres("mFX_vPKZ7hE"));
+    expect(writes()).toBe(1);
+
+    img.dispatchEvent(new Event("error"));
+    expect(img.getAttribute("src")).toBe(hq("mFX_vPKZ7hE"));
+    expect(writes()).toBe(2);
+
+    img.dispatchEvent(new Event("error"));
+    setNaturalWidth(img, 120);
+    img.dispatchEvent(new Event("load"));
+    expect(img.getAttribute("src")).toBe(hq("mFX_vPKZ7hE"));
+    expect(writes()).toBe(2);
+  });
+
+  it("falls back from a broken cover to maxres, then to hqdefault on the 120px placeholder", () => {
+    const img = parts(cover({ url: VIDEO, cover: COVER })).img!;
+    const writes = srcWrites(img);
+
+    img.dispatchEvent(new Event("error"));
+    setNaturalWidth(img, 120);
+    img.dispatchEvent(new Event("load"));
+    expect(img.getAttribute("src")).toBe(hq("mFX_vPKZ7hE"));
+    expect(writes()).toBe(2);
+
+    img.dispatchEvent(new Event("load"));
+    img.dispatchEvent(new Event("error"));
+    expect(img.getAttribute("src")).toBe(hq("mFX_vPKZ7hE"));
+    expect(writes()).toBe(2);
+  });
+
+  it("keeps maxres when it loads full size after a broken cover", () => {
+    const img = parts(cover({ url: VIDEO, cover: COVER })).img!;
+    img.dispatchEvent(new Event("error"));
+    setNaturalWidth(img, 1280);
+    img.dispatchEvent(new Event("load"));
+    expect(img.getAttribute("src")).toBe(maxres("mFX_vPKZ7hE"));
+  });
+
+  it("adds a cover in place on the cover", () => {
+    const element = cover({ url: VIDEO });
+    const { button, img } = parts(element);
+    element.setAttribute("cover", COVER);
+    expect(parts(element).button).toBe(button);
+    expect(parts(element).img).toBe(img);
+    expect(img!.getAttribute("src")).toBe(COVER);
+  });
+
+  it("swaps to a new cover and restarts the fallback from it", () => {
+    const element = cover({ url: VIDEO, cover: COVER });
+    const img = parts(element).img!;
+    img.dispatchEvent(new Event("error"));
+    img.dispatchEvent(new Event("error"));
+    expect(img.getAttribute("src")).toBe(hq("mFX_vPKZ7hE"));
+
+    element.setAttribute("cover", OTHER_COVER);
+    expect(img.getAttribute("src")).toBe(OTHER_COVER);
+    setNaturalWidth(img, 120);
+    img.dispatchEvent(new Event("load"));
+    expect(img.getAttribute("src")).toBe(OTHER_COVER);
+
+    img.dispatchEvent(new Event("error"));
+    expect(img.getAttribute("src")).toBe(maxres("mFX_vPKZ7hE"));
+    img.dispatchEvent(new Event("load"));
+    expect(img.getAttribute("src")).toBe(hq("mFX_vPKZ7hE"));
+  });
+
+  it.each([
+    ["removed", (element: HTMLElement) => element.removeAttribute("cover")],
+    ["made invalid", (element: HTMLElement) => element.setAttribute("cover", "javascript:alert(1)")],
+  ])("goes back to maxres, with a fresh fallback, when the cover is %s", (_, change) => {
+    const element = cover({ url: VIDEO, cover: COVER });
+    const img = parts(element).img!;
+    img.dispatchEvent(new Event("error"));
+    img.dispatchEvent(new Event("error"));
+    expect(img.getAttribute("src")).toBe(hq("mFX_vPKZ7hE"));
+
+    change(element);
+    expect(img.getAttribute("src")).toBe(maxres("mFX_vPKZ7hE"));
+    img.dispatchEvent(new Event("error"));
+    expect(img.getAttribute("src")).toBe(hq("mFX_vPKZ7hE"));
+  });
+
+  it.each([
+    ["the same cover", COVER, COVER],
+    ["the same URL written differently", COVER, ` ${COVER}`],
+    ["another ignored value", "javascript:alert(1)", "/uploads/KIHE_7100e96610.png"],
+  ])("changes nothing for %s", (_, before, after) => {
+    const element = cover({ url: VIDEO, cover: before });
+    const img = parts(element).img!;
+    img.dispatchEvent(new Event("error"));
+    const src = img.getAttribute("src");
+    const writes = srcWrites(img);
+
+    element.setAttribute("cover", after);
+    expect(img.getAttribute("src")).toBe(src);
+    expect(writes()).toBe(0);
+  });
+
+  it("keeps playing when the cover changes, and shows the new cover on return", () => {
+    const a = cover({ url: VIDEO, cover: COVER });
+    const b = cover({ url: OTHER });
+    play(a);
+    const { iframe } = parts(a);
+
+    a.setAttribute("cover", OTHER_COVER);
+    expect(parts(a).iframe).toBe(iframe);
+    expect(iframe!.getAttribute("src")).toBe(player("mFX_vPKZ7hE"));
+
+    play(b);
+    expect(onCover(a)).toBe(true);
+    expect(parts(a).img!.getAttribute("src")).toBe(OTHER_COVER);
+  });
+
+  it("keeps playing when the cover is removed, and shows maxres on return", () => {
+    const a = cover({ url: VIDEO, cover: COVER });
+    const b = cover({ url: OTHER });
+    play(a);
+    a.removeAttribute("cover");
+    expect(isPlaying(a)).toBe(true);
+
+    play(b);
+    expect(parts(a).img!.getAttribute("src")).toBe(maxres("mFX_vPKZ7hE"));
+  });
+
+  it("restarts from the cover for a new url, even while playing", () => {
+    const element = cover({ url: VIDEO, cover: COVER });
+    parts(element).img!.dispatchEvent(new Event("error"));
+    play(element);
+
+    element.setAttribute("url", OTHER);
+    expect(onCover(element)).toBe(true);
+    const img = parts(element).img!;
+    expect(img.getAttribute("src")).toBe(COVER);
+
+    img.dispatchEvent(new Event("error"));
+    expect(img.getAttribute("src")).toBe(maxres("I3ye9D7gSRo"));
+    setNaturalWidth(img, 120);
+    img.dispatchEvent(new Event("load"));
+    expect(img.getAttribute("src")).toBe(hq("I3ye9D7gSRo"));
+  });
+
+  it("ignores a cover change while the url is invalid, and uses it once the url is valid", () => {
+    const element = cover({ url: VIDEO });
+    const old = parts(element).img!;
+    element.setAttribute("url", "https://www.youtube.com/@pharmtech");
+    element.setAttribute("cover", COVER);
+    expect([...parts(element).root.children].map((child) => child.localName)).toEqual(["style"]);
+    expect(old.getAttribute("src")).toBe(maxres("mFX_vPKZ7hE"));
+
+    element.setAttribute("url", VIDEO);
+    expect(parts(element).img!.getAttribute("src")).toBe(COVER);
   });
 });
 
