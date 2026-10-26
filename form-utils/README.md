@@ -223,8 +223,10 @@ Returns `{ isYandexForm, isFormContent }`:
 
 | field | true when |
 | --- | --- |
-| `isYandexForm` | the markup contains the substring `yandexcloud` |
+| `isYandexForm` | the markup contains the substring `wisent`: the Wisent registration widget, on any host |
 | `isFormContent` | parsing the markup yields at least one `p`, `span` or `label` |
+
+`isYandexForm` keeps the name from when the widget was served only from Yandex Cloud.
 
 Both start `false` and settle after mount, since the parse needs a DOM. Plan for
 one render at `false` — that first paint is what a static export ships.
@@ -465,6 +467,15 @@ before gathering any evidence, and absence of evidence isn't grounds to reject.
   fall-through returns the same verdict for any `has_dns_mx` response. Harmless,
   but it reads as if it does more than it does.
 
+## Upgrading to 1.3.2
+
+No code change is needed. `isYandexForm` now looks for `wisent` instead of `yandexcloud`:
+
+- The Wisent widget on `wisent-online.itegroup.online` is now flagged. 1.3.1 missed it, so the
+  wrapper fell back to `form-style`.
+- Markup that only links to Yandex Cloud, such as a PDF on `storage.yandexcloud.net`, is no
+  longer flagged.
+
 ## Upgrading to 1.3.1
 
 No code change is needed. What a site sees:
@@ -479,14 +490,14 @@ No code change is needed. What a site sees:
 ## Development
 
 ```bash
-npm test -w form-utils     # vitest — 58 tests
+npm test -w form-utils     # vitest — 64 tests
 npm run build -w form-utils
 ```
 
-Tests cover the pure helpers in `form-utils.ts` and `recaptcha.ts`, and `HTMLContent` in
-happy-dom: without `recaptchaHost` its injected DOM and server markup must equal 1.2.1's,
-kept byte-identical in `src/__fixtures__/HTMLContent-1.2.1.ts`. The four hooks have no
-automated coverage; they need a remote script and a third-party widget.
+Tests cover the pure helpers in `form-utils.ts` and `recaptcha.ts`, `useFormContentFlags`, and
+`HTMLContent` in happy-dom: without `recaptchaHost` its injected DOM and server markup must equal
+1.2.1's, kept byte-identical in `src/__fixtures__/HTMLContent-1.2.1.ts`. The other three hooks
+have no automated coverage; they need a remote script and a third-party widget.
 
 ## License
 

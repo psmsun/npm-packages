@@ -3,10 +3,15 @@
 import { useEffect, useState } from "react";
 
 export interface FormContentFlags {
-  /** The embed is a Yandex Cloud form rather than an ActiveCampaign one. */
+  /** The embed is the Wisent registration widget rather than an ActiveCampaign form. */
   isYandexForm: boolean;
   /** The embed carries copy of its own (p/span/label), not just form controls. */
   isFormContent: boolean;
+}
+
+// Every Wisent host contains "wisent"; "yandexcloud" also matched storage.yandexcloud.net links.
+export function isWisentEmbed(html: string): boolean {
+  return html.includes("wisent");
 }
 
 /**
@@ -20,8 +25,7 @@ export function useFormContentFlags(html: string): FormContentFlags {
   const [isFormContent, setIsFormContent] = useState(false);
 
   useEffect(() => {
-    // Check if content contains Yandex form
-    setIsYandexForm(html.includes("yandexcloud"));
+    setIsYandexForm(isWisentEmbed(html));
 
     // Create temporary div to parse HTML content
     const tempDiv = document.createElement("div");
