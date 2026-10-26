@@ -53,6 +53,9 @@ export function HTMLContent({
       .createRange()
       .createContextualFragment(recaptchaHost ? rewriteRecaptchaHost(html, recaptchaHost) : html);
 
+    // Wisent's legacy new.css overrides styles.css with !important; removed while detached, it never loads.
+    slotHtml.querySelectorAll('link[rel~="stylesheet" i][href*="wisent"]').forEach((link) => link.remove());
+
     // Clear the container
     divRef.current.innerHTML = "";
 

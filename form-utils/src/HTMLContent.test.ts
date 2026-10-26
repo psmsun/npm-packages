@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+// @vitest-environment-options {"settings":{"disableCSSFileLoading":true}}
 import { act, createElement, type ReactElement, StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -10,6 +11,7 @@ import { RECAPTCHA_NET_HOST, rewriteRecaptchaHost } from "./recaptcha.js";
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 // No <script> in anything mounted here: happy-dom would try to fetch it.
+// CSS loading is off (docblock above), so a mounted stylesheet logs an error instead of fetching.
 const RECAPTCHA = `<div class="g-recaptcha" data-src="https://www.google.com/recaptcha/api.js?render=explicit"></div><a href="https://www.google.com/maps">Map</a>`;
 const PLAIN = `<form action="https://itegroup.activehosted.com/proc.php"><label>Email <input name="email" type="email"></label><button type="submit">Send</button></form>`;
 const SIMPLE_EMBED = `<div class="_form_12"></div><script src="https://itegroup.activehosted.com/f/embed.php?id=12" type="text/javascript" charset="utf-8"></script>`;
@@ -157,5 +159,37 @@ describe("the simple-embed warning in the browser", () => {
     const injected = mount(createElement(HTMLContent, { html: LOADER, ...PROPS }));
     expect(injected).toBe(mount(createElement(HTMLContent121, { html: LOADER, ...PROPS })));
     expect(errors).toEqual([]);
+  });
+});
+
+describe("Wisent stylesheets", () => {
+  const WISENT_CSS = `<link rel="stylesheet" type="text/css" href="https://wisent-live-online.website.yandexcloud.net/new.css">`;
+  const APP = `<div id="app"></div>`;
+
+  it.each([
+    ["the provider's new.css", WISENT_CSS],
+    ["every one of several", `${WISENT_CSS}${WISENT_CSS.replace("new.css", "print.css")}`],
+    ["one whose rel has another token and case", WISENT_CSS.replace('"stylesheet"', '"alternate StyleSheet"')],
+  ])("drops %s before mounting, so it never loads", (_, links) => {
+    const injected = mount(createElement(HTMLContent, { html: `${links}${APP}`, ...PROPS }));
+    expect(injected).toBe(mount(createElement(HTMLContent121, { html: APP, ...PROPS })));
+    expect(errors).toEqual([]);
+  });
+
+  it("drops it with recaptchaHost set", () => {
+    const injected = mount(
+      createElement(HTMLContent, { html: `${WISENT_CSS}${RECAPTCHA}`, recaptchaHost: RECAPTCHA_NET_HOST, ...PROPS }),
+    );
+    expect(injected).toBe(mount(createElement(HTMLContent121, { html: rewriteRecaptchaHost(RECAPTCHA), ...PROPS })));
+    expect(errors).toEqual([]);
+  });
+
+  it.each([
+    ["a stylesheet from another host", `<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto">`],
+    ["a Wisent link that is not a stylesheet", `<link rel="preconnect" href="https://wisent-api.itegroup.online">`],
+  ])("keeps %s", (_, link) => {
+    const injected = mount(createElement(HTMLContent, { html: `${link}${APP}`, ...PROPS }));
+    expect(injected).toContain("<link");
+    expect(injected).toBe(mount(createElement(HTMLContent121, { html: `${link}${APP}`, ...PROPS })));
   });
 });

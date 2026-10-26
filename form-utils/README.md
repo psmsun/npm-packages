@@ -257,6 +257,12 @@ the markup is injected once and later `html` changes are ignored; remount with a
 An empty `html` logs `html prop can't be null` to the console and injects
 nothing.
 
+**Wisent stylesheets are dropped.** Before inserting, `HTMLContent` removes every `<link>` whose
+`rel` includes `stylesheet` (any case) and whose `href` contains `wisent`, so it never loads. That
+is the provider's legacy `new.css`, whose `!important` rules override `styles.css`. Every other
+`<link>`, and the widget's own `<script>`, stays. A Wisent sheet loaded by `@import` inside a
+`<style>` block is not caught.
+
 ### reCAPTCHA host
 
 `www.google.com` is blocked in mainland China, so a reCAPTCHA loaded from it fails there.
@@ -275,7 +281,8 @@ import { HTMLContent, RECAPTCHA_NET_HOST } from "@prismetic/form-utils";
 />
 ```
 
-Without `recaptchaHost`, `HTMLContent` behaves exactly as in 1.2.1.
+Without `recaptchaHost`, `HTMLContent` behaves exactly as in 1.2.1, except that it drops Wisent
+stylesheets.
 
 #### `rewriteRecaptchaHost(html, host?)`
 
@@ -467,6 +474,16 @@ before gathering any evidence, and absence of evidence isn't grounds to reject.
   fall-through returns the same verdict for any `has_dns_mx` response. Harmless,
   but it reads as if it does more than it does.
 
+## Upgrading to 1.3.3
+
+No code change is needed. `HTMLContent` now removes the Wisent stylesheet `<link>`
+(`…/new.css`) from the embed before inserting it, so `styles.css` is the widget's only styling:
+
+- On a page whose CMS embed carries that link, the form looks different: the provider's orange
+  step names, its progress bar and its muted text colours give way to `styles.css`. Check each
+  Wisent form page after upgrading.
+- Everything else in the embed, and every other embed, is inserted as before.
+
 ## Upgrading to 1.3.2
 
 No code change is needed. `isYandexForm` now looks for `wisent` instead of `yandexcloud`:
@@ -490,14 +507,15 @@ No code change is needed. What a site sees:
 ## Development
 
 ```bash
-npm test -w form-utils     # vitest — 64 tests
+npm test -w form-utils     # vitest — 70 tests
 npm run build -w form-utils
 ```
 
 Tests cover the pure helpers in `form-utils.ts` and `recaptcha.ts`, `useFormContentFlags`, and
 `HTMLContent` in happy-dom: without `recaptchaHost` its injected DOM and server markup must equal
-1.2.1's, kept byte-identical in `src/__fixtures__/HTMLContent-1.2.1.ts`. The other three hooks
-have no automated coverage; they need a remote script and a third-party widget.
+1.2.1's (kept byte-identical in `src/__fixtures__/HTMLContent-1.2.1.ts`), apart from the dropped
+Wisent stylesheets. The other three hooks have no automated coverage; they need a remote script
+and a third-party widget.
 
 ## License
 
