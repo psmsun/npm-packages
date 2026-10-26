@@ -394,80 +394,6 @@ option cannot do this: it appends the page path to every href, which breaks pref
 one read per file. Only the `<head>` is kept. Without it every call reads the disk, as
 in 2.3.
 
-### `createSitemapNoIndex(options?)` — deprecated
-
-> **Deprecated in 2.3, removed in 3.0.** Kept working unchanged. It asks the CMS which
-> records have `noIndex: true`, so it cannot see a code-owned page, a `__placeholder__` or
-> a redirect, each of which needed its own regex in the config — and it disagrees with the
-> rendered page whenever the CMS changed after the build. Use
-> `createSitemapNoIndexFromBuild`.
-
-```ts
-createSitemapNoIndex(options?: SitemapNoIndexOptions): SitemapNoIndex
-```
-
-| option | type | default | |
-| --- | --- | --- | --- |
-| `contentTypes` | `readonly SitemapContentType[]` | `DEFAULT_CONTENT_TYPES` | collections to check |
-| `fetch` | `FetchLike` | global `fetch` | injectable for tests |
-
-Returns:
-
-```ts
-interface SitemapNoIndex {
-  normalizeSitemapPath: (p: unknown) => string;
-  /** Cached per redirects URL, so the transform hook can call it for every path. */
-  getNoIndexPathSetPromise(redirectFetchUrl: string): Promise<Set<string>>;
-}
-```
-
-```js
-const {
-  contentSignalRobotsTxt,
-  createSitemapNoIndex,
-} = require("@prismetic/seo-utils/sitemap");
-const { normalizeSitemapPath, getNoIndexPathSetPromise } =
-  createSitemapNoIndex();
-```
-
-`getNoIndexPathSetPromise(redirectsUrl)` resolves to the set of paths whose Strapi SEO
-record has `noIndex: true`, derived from the site's `*-redirects` REST URL and cached per
-URL. The default checks `pages`, `articles`, `sectors`, `medias` (under `/media-gallery/`)
-and `partners`. Sites with other routes pass their own list:
-
-```js
-const {
-  DEFAULT_CONTENT_TYPES,
-  createSitemapNoIndex,
-} = require("@prismetic/seo-utils/sitemap");
-
-const { normalizeSitemapPath, getNoIndexPathSetPromise } =
-  createSitemapNoIndex({
-    contentTypes: [
-      ...DEFAULT_CONTENT_TYPES,
-      { uid: "campaign-pages", field: "PagePath", prefix: "lp" },
-    ],
-  });
-```
-
-Filtering happens in Strapi with `filters[seo][noIndex][$eq]=true` and a page size of 500.
-
-### `DEFAULT_CONTENT_TYPES`
-
-```ts
-const DEFAULT_CONTENT_TYPES: readonly SitemapContentType[] = [
-  { uid: "pages",    field: "PagePath" },
-  { uid: "articles", field: "Slug", prefix: "articles" },
-  { uid: "sectors",  field: "Slug", prefix: "sectors" },
-  { uid: "medias",   field: "Slug", prefix: "media-gallery" },
-  { uid: "partners", field: "Slug", prefix: "partner" },
-  { uid: "peoples",  field: "Slug", prefix: "speakers" },
-];
-```
-
-`uid` is the collection uid *without* the site's slug prefix — `"articles"` is queried as
-`<site>-articles`.
-
 ### `normalizeSitemapPath(p)`
 
 ```ts
@@ -483,17 +409,9 @@ normalizeSitemapPath("/about");   // "/about"
 normalizeSitemapPath(null);       // "/"
 ```
 
-Both sides of the comparison must go through it, which is why the factory hands it back
-next to the set.
-
-### `parseRedirectsApiUrl(redirectFetchUrl)`
-
-```ts
-parseRedirectsApiUrl(url: unknown): { apiBase: string; slugPrefix: string } | null
-```
-
-Derives the REST base and the site's slug prefix from its `*-redirects` endpoint URL,
-matching `^(https?://host)/api/(<slug>)-redirects`. Returns `null` when it does not match.
+Both sides of a comparison must go through it, which is why `./bilingual/sitemap`'s
+`createLocaleSitemapNoIndex` hands it back next to its set. A hand-written `transform` that
+keeps its own exclusion set uses it the same way.
 
 ### `contentSignalRobotsTxt(signal?)`
 
@@ -529,14 +447,16 @@ generateLlmsTxt(options: LlmsTxtOptions): Promise<void>
 
 | option | type | |
 | --- | --- | --- |
-| `siteUrl` | `string` | site origin without a trailing slash |
-| `outDir` | `string` | export directory the file is written into, e.g. `"out"` |
+| `siteUrl` | `string` | site origin, e.g. `"https://mosbuildexpo.com"`. A trailing slash is tolerated, a path is not |
+| `outDir` | `string` | the static export, e.g. `"out"`. It must already hold `index.html`; `llms.txt` is written into it |
 | `strapiGraphqlUrl` | `string` | GraphQL endpoint |
 | `homepageType` | `string` | GraphQL root of the homepage single type, e.g. `"mosBuildHomepage"` |
 | `navBarType` | `string` | GraphQL root of the navbar single type, e.g. `"mosBuildNavBar"` |
+| `navText` | `"component" \| "string"` | how this site's navbar `NavText` (event date and location) is shaped; omit to leave it out |
 | `fetch` | `PostFetchLike` | defaults to the global fetch |
 
-Called as a side effect inside next-sitemap's `additionalPaths` hook:
+Called inside next-sitemap's `additionalPaths` hook, which runs after `next build` has
+exported the site:
 
 ```js
 const { generateLlmsTxt } = require("@prismetic/seo-utils/sitemap");
@@ -556,28 +476,108 @@ module.exports = {
 ```
 
 Writes `<outDir>/llms.txt` (llmstxt.org) from the homepage SEO title and description and
-the navbar: every top-level item with a link, every dropdown as a heading with its links
-beneath it. The site's homepage single type must expose `seo { metaTitle metaDescription }`
-and its navbar single type `Data { Title LinkTo Links { Text LinkTo } }`; enabling it on
-a new site means checking both root names and that shape first.
+the links editors put in the CMS navbar, each checked against the export:
 
-**Never throws.** See Limits.
+```md
+# {metaTitle}
+
+> {metaDescription}
+
+## Pages
+
+- [{text}]({url})
+- [{text}]({url})
+```
+
+LF line endings and one trailing newline. A blank description leaves out the blockquote and
+its blank line. When no link survives, `## Pages` is left out and one `console.error` says
+so; the file is still written. Every whitespace run in the title, the description and a
+link's text becomes one space. In link text, `\`, `[` and `]` are escaped with a backslash,
+and a link with no text uses its URL as its text. There is no Homepage line: only the
+navbar's own links appear.
+
+The links are each top-level item's own `LinkTo`, then the `Links[]` of its dropdown, in nav
+order; a dropdown title without a `LinkTo` yields nothing. Each resolves against `siteUrl`:
+
+| the link | in `llms.txt` |
+| --- | --- |
+| a page exported as `p/index.html` | `https://site/p/`. The slash comes from the export; query and hash are dropped |
+| a page exported as `p.html`, or a raw `.html` file | `https://site/p`, no slash |
+| any other exported file, e.g. `/files/brochure.pdf` | listed as-is, never read |
+| a page whose head says `noindex` | dropped, one `console.log` |
+| a `<meta http-equiv="refresh">` page | followed once: the target's URL replaces the link's, the nav text stays. An external, non-http or noindex target is dropped with `console.log`; a second redirect, a missing target or a refresh with no URL with `console.error` |
+| another origin, `http:` on an `https:` site included | dropped, one `console.log` |
+| `mailto:`, `tel:`, `javascript:` … | dropped, one `console.log` |
+| not in the export, or resolving outside `outDir` | dropped, one `console.error` |
+| a URL already listed | skipped silently; the first in nav order wins |
+
+A listed URL is percent-encoded the way the URL parser writes it (a Cyrillic path
+included), with `(` and `)` encoded too so the Markdown link holds.
+
+**`navText`** adds the navbar's `NavText`, the event date and location, as a list under the
+description. Its shape is per site: 22 ITE sites model it as a component,
+`NavText { Text1 Text2 }`, and 6 as a plain string. The site says which; omitted, the
+query is exactly the 2.x one and no line is written.
+
+```js
+await generateLlmsTxt({
+  // …the options above
+  navText: "component",   // or "string"
+});
+```
+
+```md
+# {metaTitle}
+
+> {metaDescription}
+
+- 13 - 15 April 2027
+- Crocus Expo, Moscow
+
+## Pages
+
+- [{text}]({url})
+```
+
+`Text1` and `Text2`, or the string, are split on line breaks; each line is trimmed with its
+whitespace collapsed, empty lines are dropped, and nothing is escaped or labelled. The lines
+follow the description, or the title when there is none, and stay when no link survives.
+When the site opts in and no line is left, one `console.error` names
+`<navBarType>.NavText` and the file is written without them. A `navText` that does not
+match the site's schema makes Strapi reject the query, which fails the build.
+
+**Throws.** It rejects with an `Error` whose message starts with `[llms.txt] ` and names
+the cause when:
+
+- `siteUrl` is not an absolute http(s) origin;
+- `navText` is set to anything but `"component"` or `"string"`;
+- `<outDir>/index.html` does not exist, checked before any request is sent;
+- the request fails, or the response has `ok: false` (the message includes its `status` when
+  present and any GraphQL error messages in its body);
+- the body is not JSON;
+- the body has a non-empty GraphQL `errors` array, even next to `data`;
+- `<homepageType>.seo.metaTitle` is blank, or the homepage record is missing;
+- `<navBarType>.Data` is not a list;
+- a file in the export cannot be read, or `llms.txt` cannot be written.
+
+A rejection fails next-sitemap, and with it the build. See [Limits](#limits).
 
 ### Types
 
 ```ts
-interface SitemapContentType {
-  uid: string;              // collection uid without the site's slug prefix
-  field: string;            // "PagePath" for page-like types, "Slug" otherwise
-  prefix?: string | null;   // URL segment the slug lives under; omit if field is a path
-}
-
+// The fetch option of ./bilingual/sitemap's createLocaleSitemapNoIndex, re-exported there.
 type FetchLike = (url: string) => Promise<{
   ok: boolean;
   json(): Promise<unknown>;
-  status?: number;          // absent ⇒ the failure is not classified
-  text?(): Promise<string>; // preferred over json() when reading an error body
+  status?: number;
+  text?(): Promise<string>;
 }>;
+
+// generateLlmsTxt's fetch option. Absent ok/status ⇒ the response is not classified.
+type PostFetchLike = (
+  url: string,
+  init: { method: "POST"; headers: Record<string, string>; body: string },
+) => Promise<{ ok?: boolean; status?: number; json(): Promise<unknown> }>;
 
 type TransformRobotsTxt = (config: unknown, robotsTxt: string) => Promise<string>;
 
@@ -592,9 +592,8 @@ interface ExportedAlternate { hreflang: string; href: string }   // href with &a
 interface SitemapAlternateRef { href: string; hreflang: string; hrefIsAbsolute: true }
 ```
 
-Also exported: `SitemapNoIndexOptions`, `SitemapNoIndex`, `BuildNoIndexOptions`,
-`BuildNoIndex`, `SitemapTransformConfig`, `LlmsTxtOptions`, `PostFetchLike`,
-`DEFAULT_CONTENT_SIGNAL`, and the three pure pieces of the build reader,
+Also exported: `BuildNoIndexOptions`, `BuildNoIndex`, `SitemapTransformConfig`,
+`LlmsTxtOptions`, `DEFAULT_CONTENT_SIGNAL`, and the three pure pieces of the build reader,
 `inspectExportedHtml(html)`, `inspectExportedAlternates(html)` and
 `exportedFilesFor(path, outDir)`.
 
@@ -933,8 +932,7 @@ createLocaleSitemapNoIndex(options: LocaleSitemapNoIndexOptions): LocaleSitemapN
 | `fetch` | `FetchLike` | global `fetch` | injectable for tests |
 
 Returns `{ normalizeSitemapPath, getNoIndexPathSetPromise() }` — note
-`getNoIndexPathSetPromise` takes **no argument** here (the redirects-URL version takes the
-redirects URL) and caches on the configured base.
+`getNoIndexPathSetPromise` takes **no argument** and caches on the configured base.
 
 ### `localeAlternateRefs(siteUrl, path, locales, options?)`
 
@@ -1107,25 +1105,6 @@ previous sitemap exactly — 435 entries, 7 noindex pages and 19 redirects dropp
 two regex guards, the per-path redirects fetch and the CMS query removed. `/404/` and
 `/_not-found/` never reach `transform`; next-sitemap skips them itself.
 
-## Sitemap fetch failures
-
-`createSitemapNoIndex` (deprecated) classifies a failed collection query instead of swallowing every
-non-OK response:
-
-| response | behaviour |
-| --- | --- |
-| `404` | silent — the collection does not exist on this site |
-| `400` whose body says `Invalid key seo` | silent — the collection has no `seo` component |
-| `400` whose body says `Invalid key <field>` | `console.error` naming the uid and the configured field |
-| any other status | `console.error` with the status code |
-| a thrown fetch | `console.error`, as before |
-| a response with no observable `status` | silent, as before |
-
-The third row is the one that matters: a site whose collection spells the field `slug`
-rather than `Slug` used to contribute nothing to the exclusion set and say nothing about
-it. `peoples` (speakers, under `/speakers/`) joined `DEFAULT_CONTENT_TYPES` in 2.1; sites
-without that collection answer 404 and stay silent.
-
 ## Bilingual sites
 
 A site whose URLs carry a locale segment (`/en/dining/`, `/ar/dining/`) uses its own entry
@@ -1231,9 +1210,9 @@ which runs in Node during the build, but a rule here is invisible to client bund
 `shape` is not cosmetic: a wrong value makes every `seo` read `undefined`, so nothing is
 ever excluded and the sitemap ships noIndex pages. The mismatch is detected and logged with
 `console.error` — check the postbuild log for `[sitemap] shape is …` before trusting an
-export. This entry filters client-side, where `./sitemap` filters in Strapi with
-`$eq: true`, because its noIndex rule is broader than that filter and the exclusion set must
-match exactly the pages that render a noindex meta tag.
+export. This entry filters client-side rather than with Strapi's
+`filters[seo][noIndex][$eq]=true`, because its noIndex rule is broader than that filter and
+the exclusion set must match exactly the pages that render a noindex meta tag.
 
 **No TLS override.** The package never sets `NODE_TLS_REJECT_UNAUTHORIZED`. A CMS whose
 certificate chain Node cannot verify needs an explicit, per-site opt-in in that site's own
@@ -1280,11 +1259,8 @@ See the sitemap note below.
   `Content`. There is no accessor option, unlike `@prismetic/article-filters`'
   `ArticleAccessors`. On another CMS these simply never match — see below.
 - **`createSitemapNoIndexFromBuild` serves any `output: "export"` site** — it reads
-  HTML, not a CMS. The two CMS-backed helpers do not: `createSitemapNoIndex`
-  requires a `*-redirects` REST URL matching `/api/<slug>-redirects` and prefixes every
-  collection with the slug it derives from it — `articles` is queried as
-  `<slug>-articles`, ITE's multi-tenant naming. `createLocaleSitemapNoIndex` avoids that,
-  but unconditionally prefixes `/<locale>` to every path it emits, so on a site whose URLs
+  HTML, not a CMS. The CMS-backed `createLocaleSitemapNoIndex` does not: it
+  unconditionally prefixes `/<locale>` to every path it emits, so on a site whose URLs
   have no locale segment the exclusion set never matches:
 
   ```js
@@ -1298,7 +1274,10 @@ See the sitemap note below.
   your own CMS, and `normalizeSitemapPath` is exported so both sides of the comparison
   agree.
 - **`generateLlmsTxt`** takes configurable GraphQL roots but a fixed query shape:
-  `seo { metaTitle metaDescription }` and `Data { Title LinkTo Links { Text LinkTo } }`.
+  `seo { metaTitle metaDescription }` and `Data { Title LinkTo Links { Text LinkTo } }`,
+  plus `NavText { Text1 Text2 }` (`navText: "component"`) or a bare `NavText` string
+  (`navText: "string"`) when asked for. It reads the static export, so it serves an
+  `output: "export"` site and runs after `next build`.
 
 ## Using it on another project today
 
@@ -1348,10 +1327,11 @@ the natural next step if more than one non-ITE project needs it.
 
 # Limits
 
-- **A CMS failure in `generateLlmsTxt` is logged and swallowed**, so the build still
-  succeeds but the deploy has no `llms.txt`. Kept from the original on purpose, so the
-  sitemap step never fails a build. Look for `[llms.txt] generated → out/llms.txt` in the
-  postbuild log before trusting an export.
+- **`generateLlmsTxt` fails the build** on a CMS, HTTP or GraphQL error, missing homepage
+  SEO, a missing navbar or a missing export, a transient CMS 503 included: it rejects and
+  next-sitemap's postbuild fails with it. Re-run the build once the CMS answers.
+- **`llms.txt` lists only same-origin navbar pages.** External links, pages the navbar does
+  not link and the homepage, unless the navbar links it, never appear.
 - **A wrong `shape` on `./bilingual/sitemap` fails silently** apart from its
   `console.error`. Nothing is excluded and noIndex pages ship.
 - **`./bilingual/sitemap` always prefixes `/<locale>`**, so it cannot serve a site whose
@@ -1366,6 +1346,56 @@ the natural next step if more than one non-ITE project needs it.
   from `.`** even though they exist in the source. Pass policies as string literals.
 - **Requires Node 20.19+ / 22.12+** when loaded from a CommonJS config.
 - **An empty `{}` SEO component counts as a page having its own**, so it inherits nothing.
+
+# Upgrading to 3.0
+
+**Breaking, on `./sitemap` only.** `.`, `./localized`, `./bilingual` and
+`./bilingual/sitemap` are unchanged. Three things break:
+
+1. **`llms.txt` has a new format.** It lists only the navbar's own same-origin links that
+   the export can serve, as one flat Markdown list of the URLs the pages are served at. The
+   Homepage line, the dropdown headings, external links, noindex pages and missing pages
+   are gone, and a redirect lists its target. 2.x wrote:
+
+   ```md
+   # Mosbuild 2026
+   > The big show.
+
+   ## Key Sections
+
+   - Homepage: https://mosbuildexpo.com/
+   - Visit: https://mosbuildexpo.com/visit
+   - Exhibit
+     - Why exhibit: https://mosbuildexpo.com/exhibit/why
+     - Book a stand: https://forms.example.com/stand
+   ```
+
+   3.0 writes:
+
+   ```md
+   # Mosbuild 2026
+
+   > The big show.
+
+   ## Pages
+
+   - [Visit](https://mosbuildexpo.com/visit/)
+   - [Why exhibit](https://mosbuildexpo.com/exhibit/why/)
+   ```
+
+2. **`generateLlmsTxt` rejects** where 2.x logged the failure and wrote nothing. A CMS,
+   HTTP or GraphQL error, missing homepage SEO, a missing navbar or a missing export now
+   fails the build; [`generateLlmsTxt`](#generatellmstxtoptions) has the full list.
+3. **The deprecated CMS helper is removed**, as 2.3 announced: `createSitemapNoIndex`,
+   `DEFAULT_CONTENT_TYPES`, `parseRedirectsApiUrl`, `SitemapContentType`,
+   `SitemapNoIndexOptions` and `SitemapNoIndex` are gone from `./sitemap`. Use
+   `createSitemapNoIndexFromBuild`; [Upgrading to 2.3](#upgrading-to-23) shows the switch.
+
+Existing `generateLlmsTxt` call sites need no config change, but the export must already be
+in `outDir` when next-sitemap runs. It is, on every ITE site's postbuild.
+
+New and optional: `navText` (`"component"` or `"string"`) adds the navbar's event date and
+location under the description. A shape the site's schema does not have fails the build.
 
 # Upgrading to 2.4.1
 
@@ -1459,14 +1489,14 @@ with no SEO record of its own now renders no JSON-LD rather than the homepage's.
 # Development
 
 ```bash
-npm test -w seo-utils      # vitest — 458 tests across 15 files, type tests included
+npm test -w seo-utils      # vitest — 516 tests across 15 files, type tests included
 npm run build -w seo-utils
 ```
 
-`src/__fixtures__` holds byte-identical copies of the two legacy `lib/seo.js` variants and
-of Mosbuild's `lib/generateLlmsTxt.js`; the tests prove the package reproduces them.
-`redsea.golden.test.ts` replays 1,080 cases captured from four live bilingual sites, and
-`mainEntryUnchanged.test.ts` pins the main entry against 2.0. `localized.test-d.ts` is
+`src/__fixtures__` holds byte-identical copies of the two legacy `lib/seo.js` variants; the
+tests prove the package reproduces them. `redsea.golden.test.ts` replays 1,080 cases
+captured from four live bilingual sites, and `mainEntryUnchanged.test.ts` pins the main
+entry against 2.0. `localized.test-d.ts` is
 checked by `tsc` through `tsconfig.typecheck.json`; an unused `@ts-expect-error` fails the
 run. The invalid and valid locale configs in `test-fixtures/localeConfigCases.ts`, at the
 repo root, run here and in i18n-utils, so the two `validate()` copies cannot drift.

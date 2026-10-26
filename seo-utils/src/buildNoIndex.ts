@@ -71,7 +71,7 @@ const ATTRIBUTE_ESCAPES: Record<string, string> = {
   "&gt;": ">",
 };
 
-function attr(tag: string, name: string): string | null {
+export function attr(tag: string, name: string): string | null {
   const m = new RegExp(
     `\\s${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s"'>]+))`,
     "i",
@@ -79,9 +79,13 @@ function attr(tag: string, name: string): string | null {
   return m ? (m[1] ?? m[2] ?? m[3] ?? "") : null;
 }
 
-function headOf(html: string): string {
+export function headOf(html: string): string {
   const headEnd = html.search(/<\/head\s*>/i);
   return headEnd === -1 ? html : html.slice(0, headEnd);
+}
+
+export function decodeAttribute(value: string): string {
+  return value.replace(/&(?:amp|quot|#x27|lt|gt);/g, (escape) => ATTRIBUTE_ESCAPES[escape]);
 }
 
 /** What one exported HTML document says about itself. Only the `<head>` is read. */
@@ -112,12 +116,7 @@ export function inspectExportedAlternates(html: string): ExportedAlternate[] {
     if (rel === null || !rel.toLowerCase().split(/\s+/).includes("alternate")) continue;
     const hreflang = attr(tag, "hreflang");
     const href = attr(tag, "href");
-    if (hreflang && href) {
-      alternates.push({
-        hreflang,
-        href: href.replace(/&(?:amp|quot|#x27|lt|gt);/g, (escape) => ATTRIBUTE_ESCAPES[escape]),
-      });
-    }
+    if (hreflang && href) alternates.push({ hreflang, href: decodeAttribute(href) });
   }
   return alternates;
 }

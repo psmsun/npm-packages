@@ -1,9 +1,5 @@
 /**
  * `./bilingual/sitemap`: createLocaleSitemapNoIndex and the hreflang helper.
- *
- * `./sitemap`'s redirects-URL mode is a separate module and a separate test file
- * (`sitemap.test.ts`, unedited) — the point of splitting the entry was that the ITE
- * helper stays exactly as it is.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";

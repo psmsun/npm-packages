@@ -1,12 +1,10 @@
 /**
- * The two opt-in policies on the main entry, and the sitemap's fetch-failure
- * classification. Both are additive: with no policy passed, `mainEntryUnchanged.test.ts`
- * and the 109 originals prove the output is what 2.0 shipped.
+ * The two opt-in policies on the main entry. Both are additive: with no policy passed,
+ * `mainEntryUnchanged.test.ts` and the 109 originals prove the output is what 2.0 shipped.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createSeo } from "./seo.js";
-import { createSitemapNoIndex } from "./sitemap.js";
 
 const ITE = { siteUrl: "https://expopharmtech.com", siteName: "Pharmtech" };
 
@@ -161,130 +159,5 @@ describe('noIndexPolicy: "strict"', () => {
   it('"noindex, nofollow" and a bare "noindex" differ only in follow', () => {
     expect(strict({ metaRobots: "noindex, nofollow" }, "a").robots.follow).toBe(false);
     expect(strict({ robots: "NOINDEX" }, "a").robots.follow).toBe(true);
-  });
-});
-
-describe("sitemap fetch-failure classification", () => {
-  const REDIRECTS =
-    "https://ite-cms.prismetic.com/api/pharmtech-v2-redirects?pagination[pageSize]=500";
-
-  /** Answers every collection with the same failure, so one call proves one branch. */
-  function failWith(res: Record<string, unknown>) {
-    return async () => res as never;
-  }
-
-  it("404 is silent — the collection simply does not exist on this site", async () => {
-    const set = await createSitemapNoIndex({
-      fetch: failWith({ ok: false, status: 404, json: async () => ({}) }),
-    }).getNoIndexPathSetPromise(REDIRECTS);
-    expect([...set]).toEqual([]);
-    expect(logged).toEqual([]);
-  });
-
-  it('400 "Invalid key seo" is silent — the collection has no seo component', async () => {
-    const set = await createSitemapNoIndex({
-      fetch: failWith({
-        ok: false,
-        status: 400,
-        text: async () => '{"error":{"message":"Invalid key seo"}}',
-        json: async () => ({ error: { message: "Invalid key seo" } }),
-      }),
-    }).getNoIndexPathSetPromise(REDIRECTS);
-    expect([...set]).toEqual([]);
-    expect(logged).toEqual([]);
-  });
-
-  it('400 "Invalid key <field>" is reported, naming the uid and the configured field', async () => {
-    await createSitemapNoIndex({
-      contentTypes: [{ uid: "articles", field: "Slug", prefix: "articles" }],
-      fetch: failWith({
-        ok: false,
-        status: 400,
-        text: async () => '{"error":{"message":"Invalid key Slug"}}',
-        json: async () => ({}),
-      }),
-    }).getNoIndexPathSetPromise(REDIRECTS);
-    expect(logged).toHaveLength(1);
-    expect(logged[0]).toContain("pharmtech-v2-articles");
-    expect(logged[0]).toContain("Invalid key Slug");
-    expect(logged[0]).toContain('"Slug"');
-    expect(logged[0]).toContain("spelling and case");
-  });
-
-  it("any other status is reported with the code", async () => {
-    await createSitemapNoIndex({
-      contentTypes: [{ uid: "pages", field: "PagePath" }],
-      fetch: failWith({ ok: false, status: 500, json: async () => ({}) }),
-    }).getNoIndexPathSetPromise(REDIRECTS);
-    expect(logged).toHaveLength(1);
-    expect(logged[0]).toContain("HTTP 500");
-    expect(logged[0]).toContain("pharmtech-v2-pages");
-  });
-
-  it("a response with no observable status stays silent, exactly as before 2.1", async () => {
-    // Every injected fetch in the pre-2.1 tests looks like this. Turning it into noise
-    // would punish the sites and suites that never had a status to give.
-    await createSitemapNoIndex({
-      contentTypes: [{ uid: "pages", field: "PagePath" }],
-      fetch: failWith({ ok: false, json: async () => ({}) }),
-    }).getNoIndexPathSetPromise(REDIRECTS);
-    expect(logged).toEqual([]);
-  });
-
-  it("a thrown fetch is still reported, as it always was", async () => {
-    await createSitemapNoIndex({
-      contentTypes: [{ uid: "pages", field: "PagePath" }],
-      fetch: async () => {
-        throw new Error("network");
-      },
-    }).getNoIndexPathSetPromise(REDIRECTS);
-    expect(logged).toHaveLength(1);
-    expect(logged[0]).toContain("noIndex fetch failed for pharmtech-v2-pages");
-  });
-
-  it("a 400 whose body says nothing recognisable is reported verbatim", async () => {
-    await createSitemapNoIndex({
-      contentTypes: [{ uid: "pages", field: "PagePath" }],
-      fetch: failWith({
-        ok: false,
-        status: 400,
-        text: async () => "something else entirely",
-        json: async () => ({}),
-      }),
-    }).getNoIndexPathSetPromise(REDIRECTS);
-    expect(logged).toHaveLength(1);
-    expect(logged[0]).toContain("HTTP 400");
-    expect(logged[0]).toContain("something else entirely");
-  });
-
-  it("falls back to json() when the response has no text()", async () => {
-    await createSitemapNoIndex({
-      contentTypes: [{ uid: "articles", field: "Slug" }],
-      fetch: failWith({
-        ok: false,
-        status: 400,
-        json: async () => ({ error: { message: "Invalid key Slug" } }),
-      }),
-    }).getNoIndexPathSetPromise(REDIRECTS);
-    expect(logged).toHaveLength(1);
-    expect(logged[0]).toContain("Invalid key Slug");
-  });
-
-  it("a body that cannot be read at all does not throw", async () => {
-    await createSitemapNoIndex({
-      contentTypes: [{ uid: "pages", field: "PagePath" }],
-      fetch: failWith({
-        ok: false,
-        status: 400,
-        text: async () => {
-          throw new Error("unreadable");
-        },
-        json: async () => {
-          throw new Error("unreadable");
-        },
-      }),
-    }).getNoIndexPathSetPromise(REDIRECTS);
-    expect(logged).toHaveLength(1);
-    expect(logged[0]).toContain("HTTP 400");
   });
 });

@@ -1,9 +1,6 @@
 /**
  * next-sitemap helpers for a site whose routes carry a locale segment.
  *
- * Separate from `./sitemap` so that entry's `createSitemapNoIndex` — the redirects-URL
- * convention the 27 ITE sites use — stays exactly as it is.
- *
  * Node-only, no React, no top-level await, so `next-sitemap.config.js` can load it with a
  * plain `require()` through Node's require(esm) (Node 20.19+ / 22.12+).
  */
