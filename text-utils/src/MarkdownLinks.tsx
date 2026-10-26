@@ -49,12 +49,10 @@ export const MarkdownLinks = ({
     <>
       {tokens.map((token, i) =>
         token.type === "text" ? (
-          // Tokens are derived deterministically from `text` and never
-          // reordered, so the index is a stable key here.
-          // biome-ignore lint/suspicious/noArrayIndexKey: see above
-          <Fragment key={i}>{token.value}</Fragment>
+          // biome-ignore lint/suspicious/noArrayIndexKey: tokens never reorder; the t/l prefix keeps an index apart from an offset
+          <Fragment key={`t${i}`}>{token.value}</Fragment>
         ) : (
-          <Link key={token.offset} href={token.href} className={className}>
+          <Link key={`l${token.offset}`} href={token.href} className={className}>
             {token.label}
           </Link>
         ),

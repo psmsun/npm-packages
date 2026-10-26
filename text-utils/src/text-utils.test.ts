@@ -1,5 +1,7 @@
+import type { ReactElement } from "react";
 import { describe, expect, it } from "vitest";
 import { demoteHeadings } from "./demoteHeadings.js";
+import { MarkdownLinks } from "./MarkdownLinks.js";
 import { parseMarkdownLinks } from "./parseMarkdownLinks.js";
 
 describe("parseMarkdownLinks", () => {
@@ -120,6 +122,25 @@ describe("parseMarkdownLinks", () => {
   it("does not leak regex state between calls", () => {
     const input = "[a](/a) and [b](/b)";
     expect(parseMarkdownLinks(input)).toEqual(parseMarkdownLinks(input));
+  });
+});
+
+describe("MarkdownLinks", () => {
+  const childKeys = (text: string) =>
+    (MarkdownLinks({ text }) as ReactElement<{ children: ReactElement[] }>).props.children.map(
+      (child) => child.key,
+    );
+
+  it("keys a text run apart from a link at the same number", () => {
+    const keys = childKeys("ab[x](/x)tail");
+    expect(new Set(keys).size).toBe(3);
+    expect(keys).toEqual(["t0", "l2", "t2"]);
+  });
+
+  it("keeps keys unique across several links", () => {
+    const keys = childKeys("abcd[x](/x)e[y](/y)f");
+    expect(keys).toHaveLength(5);
+    expect(new Set(keys).size).toBe(keys.length);
   });
 });
 

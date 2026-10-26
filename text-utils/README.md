@@ -21,6 +21,7 @@ npm install @prismetic/text-utils
 | Dependencies | none |
 | Next.js | not a peer dep, never imported — the component resolves no URLs itself |
 | `"use client"` | **not needed.** `MarkdownLinks` is not a hook and renders in server components |
+| Side effects | none at import; `"sideEffects": false` |
 | Tested against | React 19 / Next 16 |
 
 `parseMarkdownLinks` and `demoteHeadings` have no React import at all and run
@@ -304,12 +305,18 @@ content editors.
 - **Newlines survive**, so a `whitespace-pre-line` parent breaks lines exactly
   as it did before.
 
+## Upgrading to 1.1.1
+
+No code change is needed. Updating a `MarkdownLinks` text that contains links
+no longer leaves the old link in the DOM: text runs and links used to share
+React keys.
+
 ## Development
 
 ```bash
-npm test -w text-utils     # vitest — 22 tests, against parseMarkdownLinks and demoteHeadings
+npm test -w text-utils     # vitest — 24 tests, against parseMarkdownLinks, MarkdownLinks and demoteHeadings
 npm run build -w text-utils
 ```
 
-`MarkdownLinks` itself has no test coverage; the tokeniser it delegates to is
-covered exhaustively, including every unsafe-scheme variant.
+`MarkdownLinks` is tested only for unique child keys; the tokeniser it delegates
+to is covered exhaustively, including every unsafe-scheme variant.
