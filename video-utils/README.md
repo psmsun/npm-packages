@@ -120,6 +120,9 @@ extractVKIDs("https://vk.com/video-144893972_456246327");
 extractVKIDs("https://vk.com/clip-12345678_456239123");
 // { oid: "-12345678", id: "456239123" }
 
+extractVKIDs("HTTPS://vk.com/video-144893972_456246327");
+// { oid: "-144893972", id: "456246327" }   ← scheme in any case, since 1.0.4
+
 extractVKIDs(null);        // null
 extractVKIDs("");          // null
 extractVKIDs("nonsense");  // null
@@ -129,8 +132,8 @@ extractVKIDs("nonsense");  // null
 
 | # | Rule | |
 | --- | --- | --- |
-| 1 | starts with `http` → `video_ext.php?oid=&id=` | reads both query params |
-| 2 | starts with `http` → `/video<oid>_<id>` or `/clip<oid>_<id>` | path form |
+| 1 | starts with `http`, any case → `video_ext.php?oid=&id=` | reads both query params |
+| 2 | starts with `http`, any case → `/video<oid>_<id>` or `/clip<oid>_<id>` | path form |
 | 3 | contains `oid=` and `id=` | parsed as a bare query fragment, no host needed |
 | 4 | `^(-?\d+)_(\d+)([?&#].*)?$` | raw pair, with pasted share params tolerated |
 
@@ -157,14 +160,26 @@ returned, on every path. See Limits.
 - **YouTube playlist, channel and user URLs are not handled.** A `/playlist?list=…`
   URL yields `null` unless it also carries `?v=`.
 
+## Upgrading to 1.0.4
+
+No code change is needed. `extractVKIDs` now parses a URL whose scheme is not
+lower-case, such as `HTTPS://vk.com/video-144893972_456246327`, as a URL, like
+its lower-case form. 1.0.3 returned `null` for it, or, when it also carried
+`oid=` and `id=` query params, those params:
+`HTTPS://vk.com/video-123_456?x=1&oid=-789&id=012` returned
+`{ oid: "-789", id: "012" }` and now returns `{ oid: "-123", id: "456" }` from
+the path. Every other input, including every URL with a lower-case scheme,
+resolves as before.
+
 ## Development
 
 ```bash
 npm test -w video-utils
 ```
 
-Runs `node --test` against `test/videoIdUtils.test.mjs` — 8 tests, built from
+Runs `node --test` against `test/videoIdUtils.test.mjs` — 10 tests, built from
 every YouTube and VK value stored in the ITE Strapi testimonial collections.
+`prepublishOnly` runs the same tests before `npm publish`.
 There is no vitest here and no build step: `src/` is published as-is, and
 `src/index.d.ts` is **hand-written**, so a change to a function signature has to
 be mirrored there by hand or consumers get types that no longer match.

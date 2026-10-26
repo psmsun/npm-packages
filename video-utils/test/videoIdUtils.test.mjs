@@ -87,6 +87,26 @@ test("extractVKIDs still handles URL forms", () => {
   });
 });
 
+test("extractVKIDs accepts a URL scheme in any case", () => {
+  // Returned null before 1.0.4.
+  assert.deepEqual(extractVKIDs("HTTPS://vk.com/video-123_456"), {
+    oid: "-123",
+    id: "456",
+  });
+  assert.deepEqual(
+    extractVKIDs("Https://vk.com/video_ext.php?oid=-227470780&id=456240128"),
+    { oid: "-227470780", id: "456240128" },
+  );
+});
+
+test("extractVKIDs reads an upper-case-scheme URL from its path, not its query", () => {
+  // 1.0.3 returned { oid: "-789", id: "012" } via the query-fragment fallback.
+  assert.deepEqual(
+    extractVKIDs("HTTPS://vk.com/video-123_456?x=1&oid=-789&id=012"),
+    { oid: "-123", id: "456" },
+  );
+});
+
 test("extractVKIDs rejects what it cannot resolve", () => {
   assert.equal(extractVKIDs(null), null);
   assert.equal(extractVKIDs(""), null);

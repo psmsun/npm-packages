@@ -65,7 +65,7 @@ export function extractVKIDs(input) {
   const str = input.trim();
 
   // ── 1. Full URL ────────────────────────────────────────────────────────────
-  if (str.startsWith("http")) {
+  if (str.toLowerCase().startsWith("http")) {
     try {
       const url = new URL(str);
 
