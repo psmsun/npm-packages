@@ -306,10 +306,12 @@ isActiveCampaignSimpleEmbed(html: string): boolean
 ```
 
 True when the markup loads an ActiveCampaign **simple embed**, that is, it has a `<script>`
-whose `src` path contains `/f/embed.php`, followed by `?`, `#`, a quote, whitespace, `>` or the
-end of the markup. The host is not checked, because ActiveCampaign forms can run on a custom
-domain. `embed.php` without `/f/`, the path in visible text, in another attribute or element,
-in a query string, or as part of a longer file name does not count. It is a regex, not a DOM
+tag whose `src` attribute ends its path (the part before any `?` or `#`) with `/f/embed.php`.
+The tag's attributes are read as an HTML parser reads them: the value may be double-quoted,
+single-quoted or unquoted, whitespace around it is ignored, and only the first `src` counts.
+The host is not checked, because ActiveCampaign forms can run on a custom domain. `embed.php`
+without `/f/`, the path in visible text, in another attribute or element, in a query string,
+or as part of a longer file name does not count. It reads the markup with regexes, not a DOM
 parse, so it runs during a server render. That script fetches the form and its reCAPTCHA from
 ActiveCampaign at runtime, so the host cannot be rewritten.
 
@@ -494,6 +496,10 @@ No code change is needed. What a site sees:
   scroll offset from a position that is already viewport-relative, so once the page was scrolled
   further than the input sat from the viewport top, the tooltip flipped `_below`. It now flips
   only when the input is within 40px of the viewport top.
+- `isActiveCampaignSimpleEmbed`, and the simple-embed warning `HTMLContent` logs from it, now
+  match only a `<script>` whose own `src` attribute, in any quote style and trimmed, has a path
+  containing `/f/embed.php`. 1.3.3 matched that text anywhere, including visible copy and other
+  elements, so markup that only mentions the path no longer triggers the warning.
 
 ## Upgrading to 1.3.3
 
@@ -528,7 +534,7 @@ No code change is needed. What a site sees:
 ## Development
 
 ```bash
-npm test -w form-utils     # vitest — 105 tests
+npm test -w form-utils     # vitest — 113 tests
 npm run build -w form-utils
 ```
 
