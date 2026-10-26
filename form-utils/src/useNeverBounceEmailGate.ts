@@ -76,11 +76,7 @@ export function useNeverBounceEmailGate<T extends HTMLElement>(
     };
     // Clear error when user starts typing - use event delegation on form for reliability
     const handleFormInput = (e: Event) => {
-      const target = e.target as HTMLElement;
-      if (
-        target &&
-        (target.getAttribute("name") === "email" || target.id === "email")
-      ) {
+      if (e.target === emailInput) {
         clearValidationMessage(emailInput);
       }
     };
@@ -200,14 +196,12 @@ export function useNeverBounceEmailGate<T extends HTMLElement>(
   useEffect(() => {
     if (!containerRef.current) return;
     let cancelled = false;
-    let initStarted = false;
     let readyPoll: ReturnType<typeof setInterval> | undefined;
     // The NeverBounce bundle loads afterInteractive, so the AC form can show up
     // before `window._nb` exists. Wait for both instead of trying once and
     // silently giving up on the field.
     const initWhenReady = (form: HTMLFormElement) => {
-      if (cancelled || initStarted) return;
-      initStarted = true;
+      if (cancelled || cleanupRef.current || readyPoll) return;
       if (window._nb) {
         cleanupRef.current = initializeNeverBounce(form) ?? null;
         return;
@@ -218,6 +212,8 @@ export function useNeverBounceEmailGate<T extends HTMLElement>(
         if (cancelled || window._nb || attempts > 50) {
           clearInterval(readyPoll);
           if (!cancelled && window._nb) {
+            // Reset only on success, so giving up stays final.
+            readyPoll = undefined;
             cleanupRef.current = initializeNeverBounce(form) ?? null;
           }
         }
@@ -233,9 +229,9 @@ export function useNeverBounceEmailGate<T extends HTMLElement>(
       for (const mutation of mutations) {
         if (mutation.type === "childList") {
           const form = containerRef.current?.querySelector("form");
-          if (form && !initStarted) {
+          if (form) {
             initWhenReady(form);
-            observer.disconnect();
+            if (cleanupRef.current) observer.disconnect();
             break;
           }
         }

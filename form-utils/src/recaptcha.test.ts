@@ -72,8 +72,43 @@ describe("isActiveCampaignSimpleEmbed", () => {
   test.each([
     ["embed.php without /f/", `<script src="https://itegroup.activehosted.com/embed.php?id=12"></script>`],
     ["the text embed.php in visible copy", `<p>Paste the embed.php snippet into the CMS.</p>`],
+    ["the loader path in visible copy", `<p>Paste /f/embed.php here</p>`],
+    ["a longer file name", `<script src="https://itegroup.activehosted.com/f/embed.php-not-a-loader.js"></script>`],
+    ["the path in another element's src", `<iframe src="https://itegroup.activehosted.com/f/embed.php?id=12"></iframe>`],
+    ["the path in a data- attribute", `<script data-src="https://itegroup.activehosted.com/f/embed.php?id=12"></script>`],
+    ["the path in the query string", `<script src="https://example.com/loader.js?next=/f/embed.php"></script>`],
+    ["a src inside another attribute's quoted value", `<script data-note=" src=/f/embed.php " src="/ordinary.js"></script>`],
+    ["a tag name that only starts with script", `<script-widget src="/f/embed.php"></script-widget>`],
   ])("is false for %s", (_, html) => {
     expect(isActiveCampaignSimpleEmbed(html)).toBe(false);
+  });
+
+  test.each([
+    ["a > inside an earlier quoted value", `<script data-note="a > b" src="/f/embed.php"></script>`],
+    ["a < inside an earlier quoted value", `<script data-x="a<b" src="/f/embed.php">`],
+    ["a single-quoted relative src and no closing tag", `<script src='/f/embed.php?id=1'>`],
+  ])("finds the loader with %s", (_, html) => {
+    expect(isActiveCampaignSimpleEmbed(html)).toBe(true);
+  });
+
+  test.each([
+    ["a quote", `<script src="https://forms.example.com/f/embed.php"></script>`],
+    ["#", `<script src="https://forms.example.com/f/embed.php#x"></script>`],
+    ["whitespace", `<script src=https://forms.example.com/f/embed.php async></script>`],
+    [">", `<script src=https://forms.example.com/f/embed.php></script>`],
+    ["the end of the markup", `<script src=https://forms.example.com/f/embed.php`],
+  ])("finds the loader path followed by %s", (_, html) => {
+    expect(isActiveCampaignSimpleEmbed(html)).toBe(true);
+  });
+
+  test("stays linear on many unclosed <script tags", () => {
+    const startedAt = performance.now();
+    expect(isActiveCampaignSimpleEmbed("<script ".repeat(30000))).toBe(false);
+    expect(performance.now() - startedAt).toBeLessThan(1000);
+  });
+
+  test("finds the loader with other attributes first, in any case", () => {
+    expect(isActiveCampaignSimpleEmbed(`<SCRIPT type="text/javascript" SRC="https://itegroup.activehosted.com/f/embed.php?id=12"></SCRIPT>`)).toBe(true);
   });
 
   test("finds the loader on a custom ActiveCampaign domain", () => {

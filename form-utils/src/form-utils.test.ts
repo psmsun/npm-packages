@@ -1,9 +1,12 @@
-import { describe, expect, test } from "vitest";
+// @vitest-environment happy-dom
+import { afterEach, describe, expect, test } from "vitest";
 import {
   getRejectMessage,
   isAcceptable,
   isValidEmail,
+  NB_ERROR_ID,
   type NeverBounceResponse,
+  showValidationMessage,
 } from "./form-utils.js";
 
 const nb = (partial: Partial<NeverBounceResponse>): NeverBounceResponse => ({
@@ -135,5 +138,37 @@ describe("isValidEmail", () => {
     "user @example.com",
   ])("rejects %s", (email) => {
     expect(isValidEmail(email)).toBe(false);
+  });
+});
+
+describe("showValidationMessage", () => {
+  const inputAt = (top: number) => {
+    const field = document.createElement("div");
+    const input = document.createElement("input");
+    field.append(input);
+    document.body.append(field);
+    input.getBoundingClientRect = () => ({ top }) as DOMRect;
+    return input;
+  };
+  const placement = () => document.getElementById(NB_ERROR_ID)?.className;
+
+  afterEach(() => {
+    document.body.innerHTML = "";
+    window.scrollTo(0, 0);
+  });
+
+  test("keeps the tooltip above an input low in the viewport of a scrolled page", () => {
+    window.scrollTo(0, 1000);
+    expect(window.scrollY).toBe(1000);
+    showValidationMessage(inputAt(200), "x", "error");
+    expect(placement()).toBe("_error _above");
+  });
+
+  test.each([
+    [39, "_error _below"],
+    [40, "_error _above"],
+  ])("places it by the input's viewport top: %ipx gives %s", (top, className) => {
+    showValidationMessage(inputAt(top), "x", "pending");
+    expect(placement()).toBe(className);
   });
 });

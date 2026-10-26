@@ -2,6 +2,9 @@
 
 import { useEffect } from "react";
 
+// Each iframe's src before any UTMs, so a re-run rebuilds instead of appending.
+const originalSrcs = new WeakMap<HTMLIFrameElement, string>();
+
 /**
  * The slice of `URLSearchParams` this hook needs. Next's
  * `ReadonlyURLSearchParams` satisfies it, so the caller keeps the
@@ -77,8 +80,19 @@ export function useUtmIframe(
 
     const appendUtmToIframeSrc = (iframe: HTMLIFrameElement) => {
       if (!utmData || !iframe.src) return;
-      const sep = iframe.src.includes("?") ? "&" : "?";
-      iframe.src = `${iframe.src}${sep}${utmData}`;
+      const original = originalSrcs.get(iframe) ?? iframe.src;
+      originalSrcs.set(iframe, original);
+      const hashAt = original.indexOf("#");
+      const base = hashAt === -1 ? original : original.slice(0, hashAt);
+      const hash = hashAt === -1 ? "" : original.slice(hashAt);
+      const sep = base.includes("?") ? "&" : "?";
+      const next = `${base}${sep}${utmData}${hash}`;
+      // The src getter returns the serialised URL (' becomes %27), so compare that form.
+      let href = next;
+      try {
+        href = new URL(next, document.baseURI).href;
+      } catch {}
+      if (iframe.src !== href) iframe.src = next;
     };
 
     let cancelled = false;

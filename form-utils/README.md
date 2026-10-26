@@ -145,9 +145,12 @@ What it does:
 
 - Watches for the AC form with a `MutationObserver`, and independently waits for
   `window._nb` (the bundle loads `afterInteractive`, so either can arrive first).
+  It keeps watching until the email field is registered, so a `<form>` whose
+  fields arrive later is still wired. One readiness poll runs at a time.
 - Registers the email field with `registerListener(input, false)` — the widget's
   own blur feedback is suppressed in favour of the tooltip below.
-- **On input:** clears any visible message, via a delegated listener on the form.
+- **On input** in the email field: clears any visible message, via a delegated
+  listener on the form.
 - **On blur:** shows the verdict if there is one, otherwise shows
   `Verifying email…` and waits. Empty and format-invalid values are skipped
   entirely so AC handles its own required-field messaging.
@@ -196,10 +199,12 @@ useUtmIframe(props.data.FormId, searchParams, [isYandexForm]);
   who lands on a campaign URL and later navigates to the form keeps their
   attribution. Malformed JSON is swallowed and treated as no UTMs.
 - The embed injects its iframe asynchronously, so this retries across up to 40
-  animation frames rather than assuming the element is already there. The src is
-  appended to **once**.
-- Picks the right separator (`?` vs `&`), so a src with no existing query string
-  isn't corrupted.
+  animation frames rather than assuming the element is already there.
+- The UTMs go into the query, before any `#fragment`, with the right separator
+  (`?` vs `&`). The CRM's own query params are kept as they are.
+- They are built onto the iframe's original `src`, remembered the first time the
+  hook sees that element, so StrictMode or a re-run with new UTMs replaces them
+  rather than appending another copy. `src` is reassigned only when it changes.
 - Listens for `message` events: `{ height }` sets the iframe's pixel height, and
   `{ action: "form-sent", yandexCounterId, yandexCounterGoal }` reports a Yandex
   Metrica goal via `window.ym`. A no-op on sites without Metrica.
@@ -300,11 +305,13 @@ non-string input is returned as is. `RECAPTCHA_NET_HOST` is `"www.recaptcha.net"
 isActiveCampaignSimpleEmbed(html: string): boolean
 ```
 
-True when the markup loads an ActiveCampaign **simple embed**, that is, it contains the
-loader path `/f/embed.php`. The host is not checked, because ActiveCampaign forms can run on
-a custom domain; `embed.php` without `/f/`, or in visible text, does not count. That script
-fetches the form and its reCAPTCHA from ActiveCampaign at runtime, so the host cannot be
-rewritten.
+True when the markup loads an ActiveCampaign **simple embed**, that is, it has a `<script>`
+whose `src` path contains `/f/embed.php`, followed by `?`, `#`, a quote, whitespace, `>` or the
+end of the markup. The host is not checked, because ActiveCampaign forms can run on a custom
+domain. `embed.php` without `/f/`, the path in visible text, in another attribute or element,
+in a query string, or as part of a longer file name does not count. It is a regex, not a DOM
+parse, so it runs during a server render. That script fetches the form and its reCAPTCHA from
+ActiveCampaign at runtime, so the host cannot be rewritten.
 
 `HTMLContent` with `recaptchaHost` set logs one `console.error` naming the form when it
 meets one: during a server render, and from its mount effect in the browser, once per
@@ -466,13 +473,27 @@ before gathering any evidence, and absence of evidence isn't grounds to reject.
   strings (`Verifying email…`, `Please wait, verifying email…`) take no
   translation, which is visible on the Russian-language sites.
 - **One form per container.** The hook wires the first `<form>` it finds and
-  disconnects its observer; a container that injects a second form later is not
-  picked up.
+  disconnects its observer once that form's email field is registered; a
+  container that injects a second form later is not picked up.
 - **The gate is client-side only.** It improves data quality at the point of
   entry; it is not a security control, and a determined submitter can bypass it.
 - **`isAcceptable`'s `has_dns_mx && smtp_connectable` branch is redundant** — the
   fall-through returns the same verdict for any `has_dns_mx` response. Harmless,
   but it reads as if it does more than it does.
+
+## Upgrading to 1.3.4
+
+No code change is needed. What a site sees:
+
+- `useUtmIframe` puts the UTMs in the iframe's query, before any `#fragment`: `…/form#section`
+  becomes `…/form?utm_source=x#section`, where 1.3.3 gave `…/form#section?utm_source=x` and the
+  CRM never saw them. It builds from the iframe's original `src`, so StrictMode in development
+  or a re-run with new UTMs no longer appends another copy, and the iframe reloads only when its
+  `src` changes.
+- The validation tooltip stays `_above` an input on a scrolled page. 1.3.3 subtracted the
+  scroll offset from a position that is already viewport-relative, so once the page was scrolled
+  further than the input sat from the viewport top, the tooltip flipped `_below`. It now flips
+  only when the input is within 40px of the viewport top.
 
 ## Upgrading to 1.3.3
 
@@ -507,15 +528,16 @@ No code change is needed. What a site sees:
 ## Development
 
 ```bash
-npm test -w form-utils     # vitest — 70 tests
+npm test -w form-utils     # vitest — 105 tests
 npm run build -w form-utils
 ```
 
-Tests cover the pure helpers in `form-utils.ts` and `recaptcha.ts`, `useFormContentFlags`, and
-`HTMLContent` in happy-dom: without `recaptchaHost` its injected DOM and server markup must equal
-1.2.1's (kept byte-identical in `src/__fixtures__/HTMLContent-1.2.1.ts`), apart from the dropped
-Wisent stylesheets. The other three hooks have no automated coverage; they need a remote script
-and a third-party widget.
+Tests cover the pure helpers in `form-utils.ts` and `recaptcha.ts`, and in happy-dom the tooltip
+placement, all three hooks and `HTMLContent`. Without `recaptchaHost`, `HTMLContent`'s injected
+DOM and server markup must equal 1.2.1's (kept byte-identical in
+`src/__fixtures__/HTMLContent-1.2.1.ts`), apart from the dropped Wisent stylesheets.
+`useNeverBounceEmailGate` runs against a stub `window._nb` with the form markup inserted by
+hand; the real ActiveCampaign script and NeverBounce widget are not exercised.
 
 ## License
 

@@ -126,9 +126,7 @@ export function clearValidationMessage(input: HTMLInputElement) {
 
 function resizeTooltip(tooltip: HTMLElement, input: HTMLInputElement) {
   const rect = input.getBoundingClientRect();
-  const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-  const scrollPosition = rect.top - scrollTop;
-  if (scrollPosition < 40) {
+  if (rect.top < 40) {
     tooltip.className =
       tooltip.className.replace(/ ?(_above|_below) ?/g, "") + " _below";
   } else {
