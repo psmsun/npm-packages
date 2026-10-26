@@ -76,7 +76,10 @@ function alternatePath(hreflang: string, fallback: string): string {
     ?.getAttribute("href");
   if (!href) return fallback;
   try {
-    return new URL(href, document.baseURI).pathname;
+    const url = new URL(href, document.baseURI);
+    // A data: URL's pathname can be "javascript:…", and "//host/x" would leave the origin.
+    if ((url.protocol !== "http:" && url.protocol !== "https:") || url.pathname.startsWith("//")) return fallback;
+    return url.pathname;
   } catch {
     return fallback;
   }

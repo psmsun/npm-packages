@@ -137,6 +137,48 @@ describe("useLocaleSwitch", () => {
     expect(anchor().getAttribute("href")).toBe("/cn/");
   });
 
+  it.each([
+    ["an https", "https://mosbuildexpo.com/cn/articles/b/"],
+    ["an http", "http://localhost:3000/cn/articles/b/"],
+    ["a relative", "/cn/articles/b/"],
+  ])("takes the pathname of %s alternate", (_, href) => {
+    setAlternate("zh-CN", href);
+    render(createElement(Switch, { ...ZH, pathname: "/articles/a/" }));
+    expect(anchor().getAttribute("href")).toBe("/cn/articles/b/");
+  });
+
+  const HOSTILE = [
+    ["a data: URL whose pathname is javascript:", "data:javascript:alert(1)"],
+    ["a protocol-relative pathname", "https://mosbuildexpo.com//evil.test/x"],
+  ];
+
+  it.each(HOSTILE)("falls back on %s", (_, href) => {
+    setAlternate("zh-CN", href);
+    render(createElement(Switch, { ...ZH, pathname: "/articles/a/" }));
+    expect(anchor().getAttribute("href")).toBe("/cn/");
+  });
+
+  it.each(HOSTILE)("falls back on %s read on click", (_, href) => {
+    setAlternate("zh-CN", "https://mosbuildexpo.com/cn/articles/b/");
+    render(createElement(Switch, { ...ZH, pathname: "/articles/a/" }));
+    setAlternate("zh-CN", href);
+    let followed: string | null = null;
+    const follow = (event: Event) => {
+      followed = (event.target as HTMLAnchorElement).getAttribute("href");
+      event.preventDefault();
+    };
+    window.addEventListener("click", follow);
+    try {
+      act(() => {
+        anchor().dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+      });
+    } finally {
+      window.removeEventListener("click", follow);
+    }
+    expect(followed).toBe("/cn/");
+    expect(anchor().getAttribute("href")).toBe("/cn/");
+  });
+
   it("renders the fallback before mount", () => {
     setAlternate("zh-CN", "https://mosbuildexpo.com/cn/articles/b/");
     const hrefs: string[] = [];

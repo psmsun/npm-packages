@@ -403,7 +403,8 @@ differ, for example `htmlLangOf(LOCALES, target)`.
 Points the switcher at the same document in the other locale by reading the page's own
 `<link rel="alternate" hreflang="…">`, which already carries the pairing — no site-wide
 path map. It returns that link's **pathname**, so a preview host stays on its own
-origin, or `fallback` when the page has no such link.
+origin, or `fallback` when the page has no such link. An alternate that is not http(s), or
+whose pathname starts with `//` (protocol-relative), also gets `fallback`.
 
 It reads the head in an effect keyed on `hreflang`, `fallback` and `pathname`. Client
 navigation swaps the head after that effect has run, so it reads again on pointerdown,
@@ -432,6 +433,13 @@ Also exported: `LocaleSwitch`, `LocaleSwitchOptions`, `LocaleSwitchLinkProps`.
   carries functions, which Next will not pass from a server component to a client
   component.
 
+## Upgrading to 0.3.1
+
+No code change is needed. `useLocaleSwitch` now returns `fallback` for an alternate that
+is not http(s), or whose resolved pathname starts with `//`. Ordinary http(s) alternates,
+taking the pathname of an alternate on another origin, and resolving a relative href
+against `document.baseURI` behave as before.
+
 ## Upgrading to 0.3
 
 Purely additive. `localizeHref` and `LocalizeHrefOptions` are new on the `.` entry, and
@@ -448,7 +456,7 @@ keeps the config out of the HTML.
 ## Development
 
 ```bash
-npm test -w i18n-utils        # vitest — 186 tests across 3 files, type tests included
+npm test -w i18n-utils        # vitest — 193 tests across 3 files, type tests included
 npm run build -w i18n-utils
 ```
 
