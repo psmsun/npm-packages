@@ -7,8 +7,9 @@
  * and does not end in a known file extension — so "brochure.pdf" stays internal.
  */
 
-const FILE_EXTENSION =
-  /\.(pdf|docx?|xlsx?|pptx?|zip|rar|csv|txt|png|jpe?g|gif|svg|webp|avif|ico|mp4|webm|mp3|xml|json)$/i;
+// Shared with resolveHref's prefetch test; not part of the package index.
+export const FILE_EXTENSION =
+  /\.(?:pdf|docx?|xlsx?|pptx?|zip|rar|csv|txt|rss|ics|png|jpe?g|gif|svg|webp|avif|ico|mp4|webm|mp3|xml|json)$/i;
 
 const HOSTNAME = /^[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}$/i;
 
@@ -32,11 +33,12 @@ export const withScheme = (url: string): string =>
  * URL the host then 302s to the canonical form — an extra hop on every redirect.
  * Stray whitespace is trimmed too: a destination saved as "/sectors " is a
  * 404, not a redirect.
- * External URLs, static files, query strings and hashes are left alone.
+ * External and protocol-relative URLs, static files, query strings and hashes
+ * are left alone.
  */
 export const withTrailingSlash = (url: string): string => {
   const clean = url.trim();
-  if (!clean.startsWith("/")) return clean;
+  if (!clean.startsWith("/") || clean.startsWith("//")) return clean;
 
   const cut = clean.search(/[?#]/);
   const path = cut === -1 ? clean : clean.slice(0, cut);

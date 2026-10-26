@@ -1,6 +1,6 @@
 {
   "name": "@prismetic/link-utils",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "CMS href normalisation for Next.js sites — bare domains, external targets, static-file prefetch",
   "type": "module",
   "main": "dist/index.js",
@@ -14,6 +14,7 @@
   "files": [
     "dist"
   ],
+  "sideEffects": false,
   "repository": {
     "type": "git",
     "url": "git+https://github.com/psmsun/npm-packages.git",

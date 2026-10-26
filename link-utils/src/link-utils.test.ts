@@ -49,6 +49,17 @@ describe("withTrailingSlash", () => {
     );
     expect(withTrailingSlash("/brochure.pdf")).toBe("/brochure.pdf");
   });
+
+  it("leaves protocol-relative URLs alone", () => {
+    expect(withTrailingSlash("//example.com/path?x=1")).toBe(
+      "//example.com/path?x=1",
+    );
+  });
+
+  it("treats .rss and .ics as static files", () => {
+    expect(withTrailingSlash("/feed.rss")).toBe("/feed.rss");
+    expect(withTrailingSlash("/event.ics")).toBe("/event.ics");
+  });
 });
 
 // These lock the extraction to the behaviour of the NavigationLink component
@@ -128,5 +139,76 @@ describe("resolveHref", () => {
 
   it("collapses accidental double slashes", () => {
     expect(resolveHref("/sectors//food").href).toBe("/sectors/food");
+  });
+});
+
+// Where 1.0.1 deliberately diverges from the sites' NavigationLink.
+describe("resolveHref 1.0.1 fixes", () => {
+  const blocked = { href: "/", target: "_self" };
+
+  it("resolves javascript: and vbscript: hrefs to / like an empty href", () => {
+    expect(resolveHref("javascript://%0Aalert(1)")).toEqual(blocked);
+    expect(resolveHref('javascript:alert(1);void("https://x")')).toEqual(blocked);
+    expect(resolveHref("javascript:alert(1)")).toEqual(blocked);
+    expect(resolveHref("vbscript:msgbox(1)")).toEqual(blocked);
+  });
+
+  it("blocks unsafe schemes in any case and with whitespace", () => {
+    expect(resolveHref("JaVaScRiPt:alert(1)")).toEqual(blocked);
+    expect(resolveHref("java\tscript:alert(1)")).toEqual(blocked);
+    expect(resolveHref(" javascript:alert(1)")).toEqual(blocked);
+  });
+
+  it("keeps an explicit target on a blocked href", () => {
+    expect(resolveHref("javascript:alert(1)", "_top")).toEqual({
+      href: "/",
+      target: "_top",
+    });
+  });
+
+  it("still passes data: through unchanged", () => {
+    expect(resolveHref("data:text/plain,hi")).toEqual({
+      href: "data:text/plain,hi",
+      target: "_self",
+    });
+  });
+
+  it("matches schemes case-insensitively", () => {
+    expect(resolveHref("MAILTO:a@b.com")).toEqual({
+      href: "MAILTO:a@b.com",
+      target: "_self",
+    });
+    expect(resolveHref("HTTPS://x.com")).toEqual({
+      href: "HTTPS://x.com",
+      target: "_blank",
+      rel: "noopener noreferrer",
+    });
+    expect(resolveHref("/HTTPS://x.com")).toEqual({
+      href: "HTTPS://x.com",
+      target: "_blank",
+      rel: "noopener noreferrer",
+    });
+  });
+
+  it("collapses double slashes only in the path of a schemeless value", () => {
+    expect(resolveHref("/search?next=//cdn.example/a//b").href).toBe(
+      "/search?next=//cdn.example/a//b",
+    );
+    expect(resolveHref("/a//b#x//y").href).toBe("/a/b#x//y");
+    expect(resolveHref("https://site.example/a//b?q=x//y").href).toBe(
+      "https://site.example/a//b?q=x//y",
+    );
+    expect(resolveHref("//cdn.example/a//b").href).toBe("//cdn.example/a//b");
+    expect(resolveHref("mosbuild.com//a").href).toBe("https://mosbuild.com/a");
+  });
+
+  it("shares one file-extension list with withTrailingSlash", () => {
+    expect(resolveHref("event.ics")).toEqual({
+      href: "/event.ics",
+      target: "_self",
+      prefetch: false,
+    });
+    expect(resolveHref("/a.ico").prefetch).toBe(false);
+    expect(resolveHref("/archive.rar").prefetch).toBe(false);
   });
 });
