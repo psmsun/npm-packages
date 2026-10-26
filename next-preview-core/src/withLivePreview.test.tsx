@@ -41,10 +41,10 @@ function Page(props: PageProps) {
   return <main>{props.title}</main>;
 }
 
-function render(node: ReactNode, providerProps: { refetchOnWindowFocus?: boolean } = {}) {
+function render(node: ReactNode) {
   act(() =>
     root.render(
-      <PreviewProviders {...providerProps}>
+      <PreviewProviders>
         <ClientProbe />
         {node}
       </PreviewProviders>,
@@ -420,18 +420,29 @@ describe("error state", () => {
   it.each([
     ["undefined", undefined],
     ["null", null],
-  ])("E6 an empty %s result is fetched again on a focus refetch with refetchOnWindowFocus", async (_, value) => {
+  ])("E6 an empty %s result is cached, and fetched again on a remount once stale, with staleTime={0}", async (_, value) => {
     const fetcher = vi.fn(async () => value);
     const Preview = withLivePreview(Page, fetcher, () => ["page"]);
-    render(<Preview />, { refetchOnWindowFocus: true });
+    const renderStaleTime0 = (node: ReactNode) =>
+      act(() =>
+        root.render(
+          <PreviewProviders staleTime={0}>
+            <ClientProbe />
+            {node}
+          </PreviewProviders>,
+        ),
+      );
+    renderStaleTime0(<Preview />);
     await flush();
     expect(fetcher).toHaveBeenCalledTimes(1);
-    act(() => {
-      document.dispatchEvent(new Event("visibilitychange", { bubbles: true }));
-    });
+    expect(client.getQueryData(["page"])).toBeNull();
+
+    renderStaleTime0(null);
+    renderStaleTime0(<Preview />);
+    expect(container.innerHTML).toBe(NOT_FOUND_FRESH);
     await flush();
     expect(fetcher).toHaveBeenCalledTimes(2);
-    expect(container.innerHTML).toBe(NOT_FOUND);
+    expect(container.innerHTML).toBe(NOT_FOUND_FRESH);
     expect(errors).toEqual([]);
   });
 });

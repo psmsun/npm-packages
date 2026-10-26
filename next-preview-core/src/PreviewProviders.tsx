@@ -2,7 +2,7 @@
 "use client";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 
 /**
  * React Query provider for Preview Mode.
@@ -13,16 +13,13 @@ import { useState, useEffect } from "react";
  * fetched once will be served from the cache on subsequent page navigations.
  *
  * @param {number} [staleTime=300000] - How long (ms) cached data is considered fresh. Default: 5 minutes.
- * @param {boolean} [refetchOnWindowFocus=false] - Whether to refetch active queries when the browser tab becomes visible again.
  */
 export function PreviewProviders({
   children,
   staleTime = 5 * 60 * 1000,
-  refetchOnWindowFocus = false,
 }: {
   children: React.ReactNode;
   staleTime?: number;
-  refetchOnWindowFocus?: boolean;
 }) {
   const [queryClient] = useState(
     () =>
@@ -30,26 +27,13 @@ export function PreviewProviders({
         defaultOptions: {
           queries: {
             staleTime,
-            refetchOnWindowFocus,
+            // Preview never refetches on tab focus; content refreshes on navigation or reload.
+            refetchOnWindowFocus: false,
             retry: 1,
           },
         },
       })
   );
-
-  useEffect(() => {
-    if (!refetchOnWindowFocus) return;
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        queryClient.invalidateQueries({ refetchType: "active" });
-      }
-    };
-
-    // No window "focus" listener: a tab switch fires both events and fetched every active query twice.
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [queryClient, refetchOnWindowFocus]);
 
   return (
     <QueryClientProvider client={queryClient}>

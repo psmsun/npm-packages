@@ -1,6 +1,6 @@
 {
   "name": "@prismetic/next-preview-core",
-  "version": "1.1.2",
+  "version": "2.0.0",
   "description": "Hybrid static/preview architecture for Next.js + Strapi projects",
   "author": "Prismetic Group FZ LLC",
   "main": "./dist/index.js",
@@ -8,11 +8,17 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.mjs",
-      "require": "./dist/index.js"
+      "import": {
+        "types": "./dist/index.d.mts",
+        "default": "./dist/index.mjs"
+      },
+      "require": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
     }
   },
+  "sideEffects": false,
   "files": [
     "dist"
   ],

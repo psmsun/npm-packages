@@ -16,6 +16,16 @@ Also requires `@tanstack/react-query` as a peer dependency:
 npm install @tanstack/react-query
 ```
 
+## Requirements
+
+| | |
+| --- | --- |
+| Peer dependencies | `react >=18`, `@tanstack/react-query >=5` |
+| Dependencies | none |
+| Module format | dual ESM and CommonJS: `dist/index.mjs` and `dist/index.js`, with matching `dist/index.d.mts` and `dist/index.d.ts` types |
+| `"use client"` | tsup adds it as a banner on the first line of both bundles; you do not add it. The examples below render `<PreviewProviders>` from a layout and call `withLivePreview` in a `"use client"` file |
+| Side effects | none at import; `package.json` declares `"sideEffects": false` |
+
 ## Exports
 
 ### `PreviewProviders`
@@ -39,11 +49,11 @@ return isPreview ? (
 );
 ```
 
-### `refetchOnWindowFocus` (opt-in)
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `staleTime` | `number` | `300000` (5 minutes) | How long cached data counts as fresh. With `staleTime={0}`, as the fleet uses, every page navigation fetches fresh content |
 
-Off by default. Without it, a reload shows the latest Strapi data.
-
-With `refetchOnWindowFocus={true}`, switching back to the preview tab fetches each active query once, the page on screen. Inactive cached queries, such as link-hover prefetches, are not refetched. Switching back from another app, without a tab switch, does not refetch.
+Preview never refetches on a tab switch. Editors see new CMS content by navigating to the page or reloading.
 
 ### `withLivePreview(WrappedComponent, fetcherFn, cacheKeyGenerator, options?)`
 
@@ -66,10 +76,15 @@ import { fetchHomepageContent } from "@/api/queryModules";
 
 export const PreviewHome = withLivePreview(
   HomeUI,
-  ({ locale }) => fetchHomepageContent(locale),
+  async ({ locale }) => {
+    const data = await fetchHomepageContent(locale);
+    return data ? { data } : null;
+  },
   ({ locale }) => ["homepage", locale]
 );
 ```
+
+The fetched object is spread into the component's props, after the incoming props, so this fetcher returns `{ data }` to give `HomeUI` the same props as the production render below.
 
 Then in your `page.jsx`:
 
@@ -119,7 +134,10 @@ const previewTexts = {
 
 export const PreviewHome = withLivePreview(
   HomeUI,
-  ({ locale }) => fetchHomepageContent(locale),
+  async ({ locale }) => {
+    const data = await fetchHomepageContent(locale);
+    return data ? { data } : null;
+  },
   ({ locale }) => ["homepage", locale],
   {
     loading: ({ locale }) => previewTexts[locale].loading,
@@ -153,6 +171,15 @@ A site that calls `withLivePreview` with three arguments needs no code change. I
 
 Only sites that pass `refetchOnWindowFocus={true}` see a change. A tab switch now fetches each active query once instead of twice, and switching back from another app no longer refetches.
 
+## Upgrading to 2.0
+
+**Breaking:** `PreviewProviders` no longer takes `refetchOnWindowFocus`. A site that passes it must delete the prop; TypeScript flags it. No site in the fleet passes it.
+
+- **Content refreshes** on navigation (with `staleTime={0}`) or on reload, never on a tab switch.
+- **Dependency:** widen the site's dependency to `^2.0.0`; a `^1` range does not pick up 2.0.
+- **ESM imports** get the ESM type declarations, `dist/index.d.mts`, instead of the CommonJS ones.
+- **`"sideEffects": false`** lets bundlers drop the package when nothing from it is used.
+
 ## Deployment
 
 From the repo root (`prepublishOnly` runs the build):
@@ -182,7 +209,7 @@ Add to your `package.json`:
 ## Development
 
 ```bash
-npm test -w next-preview-core        # vitest — 55 tests, plus 5 type tests
+npm test -w next-preview-core        # vitest — 55 tests, plus 6 type tests
 npm run build -w next-preview-core   # tsup — CJS, ESM and .d.ts in dist/
 ```
 
