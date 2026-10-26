@@ -65,6 +65,11 @@ const srcWrites = (img: HTMLImageElement) => {
 const setNaturalWidth = (img: HTMLImageElement, width: number) =>
   Object.defineProperty(img, "naturalWidth", { value: width, configurable: true });
 
+// What a document listener sees for a cover inside a closed shadow root.
+const hideComposedPath = (event: Event) => {
+  Object.defineProperty(event, "composedPath", { value: () => [], configurable: true });
+};
+
 describe("defineYoutubeCover", () => {
   it("registers youtube-cover by default", () => {
     expect(customElements.get("youtube-cover")).toBeDefined();
@@ -578,6 +583,63 @@ describe("playing", () => {
       window.removeEventListener("youtube-cover-play", retarget, { capture: true });
       document.removeEventListener("youtube-cover-play", see);
     }
+  });
+
+  it("tells its own event apart when the composed path leaves it out, as for a closed shadow root", () => {
+    const a = cover({ url: VIDEO });
+    const b = cover({ url: OTHER });
+    window.addEventListener("youtube-cover-play", hideComposedPath, { capture: true });
+    try {
+      play(a);
+      expect(isPlaying(a)).toBe(true);
+
+      play(b);
+      expect(isPlaying(b)).toBe(true);
+      expect(onCover(a)).toBe(true);
+    } finally {
+      window.removeEventListener("youtube-cover-play", hideComposedPath, { capture: true });
+    }
+  });
+
+  it.each([
+    ["", () => {}],
+    [" when the composed path leaves the cover out", hideComposedPath],
+  ])("keeps the player a play listener starts on the same cover with a new url%s", (_, intercept) => {
+    const element = cover({ url: VIDEO });
+    let replayed = false;
+    element.addEventListener("youtube-cover-play", () => {
+      if (replayed) return;
+      replayed = true;
+      element.setAttribute("url", OTHER);
+      play(element);
+    });
+    window.addEventListener("youtube-cover-play", intercept, { capture: true });
+    try {
+      play(element);
+      expect(replayed).toBe(true);
+      expect(isPlaying(element)).toBe(true);
+      expect(parts(element).iframe!.getAttribute("src")).toBe(player("I3ye9D7gSRo"));
+    } finally {
+      window.removeEventListener("youtube-cover-play", intercept, { capture: true });
+    }
+  });
+
+  it("keeps playing when site code sends the play event on the cover itself", () => {
+    const a = cover({ url: VIDEO });
+    const b = cover({ url: OTHER });
+    play(a);
+    play(b);
+    const { iframe } = parts(b);
+
+    b.dispatchEvent(
+      new CustomEvent("youtube-cover-play", {
+        bubbles: true,
+        composed: true,
+        detail: { id: "I3ye9D7gSRo" },
+      }),
+    );
+    expect(parts(b).iframe).toBe(iframe);
+    expect(onCover(a)).toBe(true);
   });
 
   it("goes back to the cover for a new url", () => {

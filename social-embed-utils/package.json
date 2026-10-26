@@ -1,6 +1,6 @@
 {
   "name": "@prismetic/social-embed-utils",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "LinkedIn, Instagram and YouTube embed URLs from CMS-pasted snippets, Instagram's crop and height messages, and a YouTube click-to-play web component",
   "type": "module",
   "main": "dist/index.js",

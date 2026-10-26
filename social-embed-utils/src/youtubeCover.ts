@@ -60,6 +60,7 @@ export const defineYoutubeCover = (tagName = "youtube-cover"): void => {
     private button: HTMLButtonElement | null = null;
     private frame: HTMLIFrameElement | null = null;
     private updateCoverImage: ((src: string | null) => void) | null = null;
+    private playEvent: Event | null = null;
 
     constructor() {
       super();
@@ -97,8 +98,9 @@ export const defineYoutubeCover = (tagName = "youtube-cover"): void => {
     }
 
     private readonly handlePlayEvent = (event: Event): void => {
-      // event.target is retargeted to a shadow host, so only the composed path says whether this cover sent it.
-      if (this.frame && this.button && !event.composedPath().includes(this)) {
+      // A closed shadow root hides this cover from the composed path, so its own event is also matched by identity.
+      if (event === this.playEvent || event.composedPath().includes(this)) return;
+      if (this.frame && this.button) {
         this.frame.replaceWith(this.button);
         this.frame = null;
       }
@@ -170,13 +172,18 @@ export const defineYoutubeCover = (tagName = "youtube-cover"): void => {
         button.replaceWith(frame);
         this.frame = frame;
 
-        this.dispatchEvent(
-          new CustomEvent(PLAY_EVENT, {
-            bubbles: true,
-            composed: true,
-            detail: { id },
-          }),
-        );
+        const event = new CustomEvent(PLAY_EVENT, {
+          bubbles: true,
+          composed: true,
+          detail: { id },
+        });
+        const previous = this.playEvent;
+        this.playEvent = event;
+        try {
+          this.dispatchEvent(event);
+        } finally {
+          this.playEvent = previous;
+        }
         frame.focus({ preventScroll: true });
       });
 

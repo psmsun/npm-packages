@@ -139,7 +139,9 @@ Returns `https://www.linkedin.com/embed/feed/update/urn:li:<type>:<id>?compact=1
 or `null` when no post id is found. Non-string input returns `null`. Nothing throws.
 
 When the text has a `src="…"` attribute, the id is read from that attribute
-only. Otherwise it is read from the whole trimmed text. A `src` with no id
+only. Otherwise it is read from the whole trimmed text. When that attribute or
+text is an `http:` or `https:` URL, only its path is read, so a query such as
+`?utm_campaign=share-12345` can't beat the real id. A `src` with no id
 returns `null`. The URL is always rebuilt on `www.linkedin.com`; the pasted URL
 is never passed through.
 
@@ -148,6 +150,7 @@ is never passed through.
 | "Embed this post" snippet, `src=".../urn:li:share:7501237627262795776?collapsed=1"` | `.../urn:li:share:7501237627262795776?compact=1` |
 | `urn:li:share:7498268744561868800` | `.../urn:li:share:7498268744561868800?compact=1` |
 | `https://www.linkedin.com/feed/update/urn:li:activity:7503697686274031617/` | `.../urn:li:activity:7503697686274031617?compact=1` |
+| `https://www.linkedin.com/feed/update/urn:li:activity:7503697686274031617/?utm_campaign=share-12345` | `.../urn:li:activity:7503697686274031617?compact=1` |
 | `https://www.linkedin.com/posts/pharmtech_we-share-25000-samples-activity-7503697686274031617-AbCd` | `.../urn:li:activity:7503697686274031617?compact=1` |
 | `<iframe src="https://evil.example/x"></iframe>` | `null` |
 | `see our LinkedIn page`, `""`, `null` | `null` |
@@ -374,7 +377,8 @@ server-rendered HTML.
 - **Focus.** Focus moves to the player (`preventScroll`), so a keyboard user
   isn't dropped on `<body>`.
 - **One player at a time.** Starting a cover sends every other playing cover
-  back to its thumbnail, including covers inside other shadow roots.
+  back to its thumbnail, including covers inside other shadow roots, open or
+  closed.
 - **Event.** Each start dispatches `youtube-cover-play` on the element, with
   `bubbles: true`, `composed: true` and `detail: { id }` (the 11-character
   video id):
@@ -509,6 +513,19 @@ the whole site instead, put the same line in a `.d.ts` file that the site's
 - The `/jsx` types cover the default tag name `youtube-cover` only. A site that
   calls `defineYoutubeCover("other-name")` declares that name itself.
 
+## Upgrading to 1.2.1
+
+No code change needed. Two fixes:
+
+- **`linkedInEmbedSrc`** reads only the path of a pasted URL or `src`. 1.2.0
+  also read the query and hash, so
+  `…/urn:li:activity:7503697686274031617/?utm_campaign=share-12345` embedded
+  `urn:li:share:12345`. For http(s) URLs only the parsed path is matched now,
+  so urn-like text in the host, query or hash, or in path segments that URL
+  parsing normalises away, no longer counts.
+- **`<youtube-cover>`** inside a closed shadow root no longer stops its own
+  player straight after it starts.
+
 ## Upgrading to 1.2
 
 Purely additive; nothing changes for 1.1 callers. New: the optional `cover`
@@ -527,7 +544,7 @@ uses no DOM APIs, and the package still has no dependencies.
 ## Development
 
 ```bash
-npm test -w social-embed-utils     # vitest — 260 tests across 4 files, 4 type tests included, under 1 s
+npm test -w social-embed-utils     # vitest — 274 tests across 4 files, 4 type tests included, under 1 s
 npm run build -w social-embed-utils
 ```
 

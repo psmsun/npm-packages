@@ -45,6 +45,27 @@ const LINKEDIN: [string, string, string | null][] = [
     embed("activity:7503697686274031617"),
   ],
   [
+    "feed URL with a urn-like query",
+    "https://www.linkedin.com/feed/update/urn:li:activity:7503697686274031617/?utm_campaign=share-12345",
+    embed("activity:7503697686274031617"),
+  ],
+  [
+    "share URL",
+    "https://www.linkedin.com/feed/update/urn:li:activity:7503697686274031617/?utm_source=share&utm_medium=member_desktop&rcm=ACoAAB1x2y3",
+    embed("activity:7503697686274031617"),
+  ],
+  [
+    "snippet with a urn-like query",
+    iframe("share:7501237627262795776", "collapsed=1&amp;utm_campaign=share-12345", 670),
+    embed("share:7501237627262795776"),
+  ],
+  ["urn without the urn:li: prefix", "ugcPost:7503697686274031617", embed("ugcPost:7503697686274031617")],
+  [
+    "URL after other text",
+    "Keynote recap https://www.linkedin.com/feed/update/urn:li:activity:7503697686274031617/",
+    embed("activity:7503697686274031617"),
+  ],
+  [
     "whitespace around a snippet",
     `\n  ${iframe("ugcPost:7503697686274031617", "collapsed=1", 567)}  \n`,
     embed("ugcPost:7503697686274031617"),
