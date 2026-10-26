@@ -32,6 +32,8 @@ const ISO_INPUTS = [
   "2024-06-15T12:00:00+05",
   "2024-06-15T10:00:00+14:00",
   "2024-06-15T10:00:00-03:30",
+  " 2024-03-01",
+  " 2024-03-01T10:00Z",
 ];
 
 // Every 3 days 7 hours 13 minutes for three years, as a date, a UTC instant and an offset-free local time.
@@ -41,11 +43,12 @@ const SWEEP = Array.from({ length: 333 }, (_, i) => {
 }).flat();
 
 const ZONED_ENGINE_INPUTS = ["Sun, 10 Mar 2024 10:00:00 GMT", "Sun, 10 Mar 2024 10:00:00 +0300"];
-const LOCAL_ENGINE_INPUTS = ["March 10, 2024", "10 March 2024 10:00", "2024-03T10:00"];
+const LOCAL_ENGINE_INPUTS = ["March 10, 2024", "10 March 2024 10:00", "2024-03T10:00", "2024-02-30 "];
 
 const INVALID = [
   "nope",
   "2024-02-30",
+  " 2024-02-30",
   "2023-02-29",
   "2024-13-01",
   "2024-00-10",
@@ -118,6 +121,12 @@ describe.each(ZONES)("dateFormat, TZ=%s", (zone) => {
         }),
       );
       expect(wrong).toEqual([]);
+    });
+  });
+
+  it("sorts an impossible date with leading whitespace last", () => {
+    inZone(zone, () => {
+      expect([" 2024-02-30", "2024-03-02"].sort(compareDates)).toEqual(["2024-03-02", " 2024-02-30"]);
     });
   });
 });

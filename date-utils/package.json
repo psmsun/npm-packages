@@ -1,6 +1,6 @@
 {
   "name": "@prismetic/date-utils",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Date and time formatting with moment's tokens, without moment, plus Intl output for other locales",
   "type": "module",
   "main": "dist/index.js",

@@ -17,10 +17,11 @@ const daysInMonth = (year: number, month: number) =>
       : 28
     : 31 - (((month - 1) % 7) % 2);
 
-export const isCalendarDate = (value: string) => CALENDAR_DATE.test(value);
+// moment's ISO regex allows leading whitespace only; trailing whitespace falls back to Date there too.
+export const isCalendarDate = (value: string) => CALENDAR_DATE.test(value.trimStart());
 
 export const toDate = (value: string, utc: boolean): Date | undefined => {
-  const match = ISO.exec(value);
+  const match = ISO.exec(value.trimStart());
   if (!match) {
     const date = new Date(value);
     return Number.isNaN(date.getTime()) ? undefined : date;

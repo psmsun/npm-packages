@@ -93,6 +93,7 @@ How values are read:
 | `2025-10-14`, `2025-10`, `2025` | a calendar date at local midnight (UTC with `utc: true`), so the day is the same in every zone |
 | `2025-10-14T09:30`, `…T09:30:00`, `…T09:30:00.000`, with `T` or a space | local time (UTC with `utc: true`) |
 | the same, ending in `Z`, `+03:00`, `+0300` or `+03` | that instant, rendered in local time (UTC with `utc: true`) |
+| any of the above after leading whitespace, `" 2025-10-14"` | the same, like moment. Trailing whitespace goes to the `Date` parser, as in moment |
 | impossible values: `2024-02-30`, `2023-02-29`, `T25:00`, `T12:60` | invalid, so `""` |
 | anything else | the JavaScript engine's `Date` parser, which is moment's own fallback |
 
@@ -241,10 +242,14 @@ Until this package, the 27 ITE sites each carried an identical `lib/date.ts`
   (`2025-287`), basic format (`20251014`) and six-digit years go to the engine's
   `Date` parser, which may read them differently from moment.
 
+## Upgrading to 1.0.1
+
+A value with leading whitespace is now read like moment: `" 2024-03-01"` is 1 March and `" 2024-02-30"` is invalid, so `""`.
+
 ## Development
 
 ```bash
-npm test -w date-utils     # vitest — 104 tests across 3 files, about 1 s
+npm test -w date-utils     # vitest — 120 tests across 3 files, about 1 s
 npm run build -w date-utils
 ```
 

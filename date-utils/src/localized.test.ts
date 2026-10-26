@@ -61,6 +61,22 @@ describe.each(ZONES)("other locales, TZ=%s", (zone) => {
     });
   });
 
+  it("read leading whitespace like moment and leave trailing whitespace to Date", () => {
+    inZone(zone, () => {
+      for (const locale of ["zh-CN", "ru"]) {
+        for (const timeZone of [undefined, "Pacific/Honolulu", "Pacific/Kiritimati"]) {
+          const options: Intl.DateTimeFormatOptions = { dateStyle: "long", timeZone };
+          expect(formatLocalizedDate(" 2024-03-01", locale, "MMM D", options)).toBe(
+            formatLocalizedDate("2024-03-01", locale, "MMM D", options),
+          );
+          expect(formatLocalizedDate("2024-03-01 ", locale, "MMM D", options)).toBe(
+            new Intl.DateTimeFormat(locale, options).format(moment("2024-03-01 ").toDate()),
+          );
+        }
+      }
+    });
+  });
+
   it("never shift a time, even on a DST-change day", () => {
     // Clocks skip 02:00-03:00 that night in Los Angeles and St. John's.
     vi.useFakeTimers({ now: new Date("2026-03-08T12:00:00Z"), toFake: ["Date"] });
