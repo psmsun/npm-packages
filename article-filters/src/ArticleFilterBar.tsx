@@ -217,13 +217,14 @@ export const ArticleFilterBar = ({
   onSortChange,
   classNames,
   labels,
-  sortOptions = SORT_OPTIONS,
+  sortOptions,
   pageSize = DEFAULT_PAGE_SIZE,
   pageSizeOptions,
   onPageSizeChange,
   children,
 }: ArticleFilterBarProps) => {
   const text = { ...DEFAULT_LABELS, ...labels };
+  const sorts = sortOptions?.length ? sortOptions : SORT_OPTIONS;
 
   // A control with nothing to choose between is hidden rather than shown
   // empty, so a site whose Tags relation is unpopulated just gets year + sort.
@@ -336,13 +337,13 @@ export const ArticleFilterBar = ({
 
       <FilterControl
         label={
-          sortOptions.find((option) => option.value === sort)?.label ??
-          sortOptions[0].label
+          sorts.find((option) => option.value === sort)?.label ??
+          sorts[0].label
         }
         ariaLabel={text.sortAriaLabel}
         classNames={classNames}
       >
-        {sortOptions.map((option) => (
+        {sorts.map((option) => (
           <button
             type="button"
             key={option.value}

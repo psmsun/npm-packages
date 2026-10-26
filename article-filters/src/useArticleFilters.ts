@@ -53,7 +53,7 @@ export interface UseArticleFiltersResult<T> {
   isFiltered: boolean;
   /** True when anything differs from the defaults, sort included — drives a Reset button. */
   canReset: boolean;
-  /** Changes whenever the result set changes; use it to reset pagination. */
+  /** Changes whenever topics, year or sort change; use it to reset pagination. */
   signature: string;
 }
 

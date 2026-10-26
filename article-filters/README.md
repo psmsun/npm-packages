@@ -215,7 +215,7 @@ Returns `UseArticleFiltersResult<T>`:
 | `resetAll` | `() => void` | topics, year, sort and page size back to defaults |
 | `isFiltered` | `boolean` | true when a topic or year is active — **sort is not counted** |
 | `canReset` | `boolean` | true when anything differs from the defaults, **sort and page size included** — drives a Reset button |
-| `signature` | `string` | changes whenever the result set changes; use as a `useEffect` dep to reset pagination. Page size is **not** part of it |
+| `signature` | `string` | changes whenever topics, year or sort change; use as a `useEffect` dep to reset pagination. Page size is **not** part of it |
 
 ```tsx
 const filters = useArticleFilters(articles, { syncUrl: false });
@@ -247,7 +247,7 @@ the MUI sites reuse the hook without this component.
 | `onSortChange` | `(sort: SortKey) => void` | — | |
 | `classNames` | `ArticleFilterBarClassNames` | `{}` | merged **after** the BEM defaults |
 | `labels` | `ArticleFilterBarLabels` | English | per-key override, see below |
-| `sortOptions` | `{ value: SortKey; label: string }[]` | `SORT_OPTIONS` | site-specific or translated sort wording |
+| `sortOptions` | `{ value: SortKey; label: string }[]` | `SORT_OPTIONS` | site-specific or translated sort wording; an empty array falls back to `SORT_OPTIONS` |
 | `pageSize` | `PageSize` | `30` | from `filters.pageSize` |
 | `pageSizeOptions` | `PageSize[]` | — | from `filters.pageSizeOptions` |
 | `onPageSizeChange` | `(size: PageSize) => void` | — | the Show select renders only when this is set **and** there are 2+ options |
@@ -330,7 +330,8 @@ Takes no arguments — it returns a fresh object each call.
 resolveAccessors<T>(overrides?: ArticleAccessors<T>): Required<ArticleAccessors<T>>
 ```
 
-Fills any gaps in `overrides` from `defaultAccessors()`. **Every pure function
+Fills any gaps in `overrides` from `defaultAccessors()`. A key passed as
+`undefined` counts as a gap and keeps its default. **Every pure function
 below takes the resolved form**, so this is the first call when using the pure
 layer directly:
 
@@ -429,7 +430,8 @@ deriveTopicOptions<T>(
 
 Attaches a live facet count to each topic. Counts honour `selectedYear` but
 ignore the topic selection. Every topic stays in the list even at count `0`, so
-the panel never changes length.
+the panel never changes length. An article counts once per topic, even when two
+of its tags slug identically (`"Grocery "` and `"Grocery"`).
 
 ```ts
 const names = deriveTopicNames(articles, acc);
@@ -761,15 +763,33 @@ moving the trigger by transform after scroll events stop, which Radix's default
 - **`visibleArticles` is a head slice, not paging.** There is no page 2;
   `signature` remains for sites that paginate themselves.
 
+## Upgrading to 1.2.1
+
+No code change is needed. Three fixes:
+
+- An article with two tags that slug identically (`"Grocery "` and `"Grocery"`)
+  now adds 1 to that topic's count, not 2, so the count matches what the filter
+  returns.
+- `sortOptions={[]}` no longer throws; the bar falls back to `SORT_OPTIONS`.
+- An accessor passed as `undefined`, such as `{ getDate: undefined }`, keeps its
+  default instead of replacing it and throwing on first use.
+
+`signature` is unchanged. Its docs now say what it has always done: it changes
+when topics, year or sort change, not when the result set changes.
+
 ## Development
 
 ```bash
-npm test -w article-filters      # vitest — 45 over the pure layer, 7 over the bar
+npm test -w article-filters      # vitest — 49 over the pure layer, 10 over the bar
 npm run build -w article-filters # tsc, emits dist/
 ```
 
 `src/article-filters.test.ts` covers `filters.ts`; `src/ArticleFilterBar.test.tsx`
-renders the bar with `renderToStaticMarkup` to pin the `children` slot and the
-Show select. The hook
+renders the bar with `renderToStaticMarkup` to pin the `children` slot, the
+Show select and the trigger label for `sortOptions={[]}`.
+`src/ArticleFilterBar.sortFallback.test.tsx` mocks the Radix popover so the
+panel renders inline, and pins the full fallback list for `sortOptions={[]}`.
+It is a separate file because the mock would show every panel's options and
+hollow out the trigger-label tests. The hook
 has no test coverage. Every example in the API reference above is taken
 from a passing assertion in that file.

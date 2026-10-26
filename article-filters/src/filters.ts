@@ -63,7 +63,15 @@ export const defaultAccessors = <T,>(): ResolvedAccessors<T> => ({
 
 export const resolveAccessors = <T,>(
   overrides?: ArticleAccessors<T>,
-): ResolvedAccessors<T> => ({ ...defaultAccessors<T>(), ...overrides });
+): ResolvedAccessors<T> => {
+  const defaults = defaultAccessors<T>();
+  return {
+    getId: overrides?.getId ?? defaults.getId,
+    getTitle: overrides?.getTitle ?? defaults.getTitle,
+    getDate: overrides?.getDate ?? defaults.getDate,
+    getTags: overrides?.getTags ?? defaults.getTags,
+  };
+};
 
 /**
  * Latin + Cyrillic; the fleet's tag names are one or the other. Explicit
@@ -150,7 +158,7 @@ export const deriveTopicOptions = <T,>(
     if (selectedYear && articleYear(article, accessors) !== selectedYear) {
       continue;
     }
-    for (const slug of articleTopicSlugs(article, accessors)) {
+    for (const slug of new Set(articleTopicSlugs(article, accessors))) {
       counts.set(slug, (counts.get(slug) ?? 0) + 1);
     }
   }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  articleYear,
   buildFilterSearch,
   canResetFilters,
   derivePageSizeOptions,
@@ -116,6 +117,43 @@ describe("deriveTopicOptions", () => {
 
   it("keeps every topic listed even at zero, so the list is stable", () => {
     expect(deriveTopicOptions(articles, names, "2026", acc)).toHaveLength(2);
+  });
+
+  it("counts an article once when two of its tags slug identically", () => {
+    const dupes = [make("1", "a", "2025-01-01", ["Grocery ", "Grocery"])];
+    const dupeNames = deriveTopicNames(dupes, acc);
+    expect(deriveTopicOptions(dupes, dupeNames, "", acc)).toEqual([
+      { slug: "grocery", name: "Grocery", count: 1 },
+    ]);
+    expect(filterArticles(dupes, ["grocery"], "", acc)).toHaveLength(1);
+  });
+});
+
+describe("resolveAccessors", () => {
+  const article = make("7", "Mango", "2025-03-01", ["Dairy"]);
+
+  it("keeps the default when an override is passed as undefined", () => {
+    expect(articleYear(article, resolveAccessors<A>({ getDate: undefined }))).toBe(
+      "2025",
+    );
+  });
+
+  it("does so for every accessor", () => {
+    const resolved = resolveAccessors<A>({
+      getId: undefined,
+      getTitle: undefined,
+      getDate: undefined,
+      getTags: undefined,
+    });
+    expect(resolved.getId(article)).toBe("7");
+    expect(resolved.getTitle(article)).toBe("Mango");
+    expect(resolved.getDate(article)).toBe("2025-03-01");
+    expect(resolved.getTags(article)).toEqual([{ Name: "Dairy" }]);
+  });
+
+  it("applies a real override over the default", () => {
+    const resolved = resolveAccessors<A>({ getTitle: (a) => a.id });
+    expect(resolved.getTitle(article)).toBe("7");
   });
 });
 

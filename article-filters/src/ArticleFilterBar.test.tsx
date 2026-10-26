@@ -38,6 +38,21 @@ describe("ArticleFilterBar children slot", () => {
   });
 });
 
+describe("ArticleFilterBar sortOptions", () => {
+  it("falls back to SORT_OPTIONS when given an empty array", () => {
+    expect(render(undefined, { sortOptions: [], sort: "oldest" })).toContain(
+      "Oldest first",
+    );
+  });
+
+  it("uses a non-empty set as given", () => {
+    const sortOptions = [{ value: "newest" as const, label: "Сначала новые" }];
+    const html = render(undefined, { sortOptions });
+    expect(html).toContain("Сначала новые");
+    expect(html).not.toContain("Newest first");
+  });
+});
+
 describe("ArticleFilterBar Show select", () => {
   const show = (props: Partial<ArticleFilterBarProps>, children?: ReactNode) =>
     render(children, { pageSizeOptions: sizes, onPageSizeChange: noop, ...props });

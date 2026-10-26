@@ -1,6 +1,6 @@
 {
   "name": "@prismetic/article-filters",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Topic / year / sort filtering for CMS article lists — React 19 / Next 16",
   "type": "module",
   "main": "dist/index.js",
