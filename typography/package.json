@@ -1,0 +1,62 @@
+{
+  "name": "@prismetic/typography",
+  "version": "0.1.0",
+  "description": "Title heading with size-mapped tags and // and ## accent markers for CMS titles — React 18+ / Tailwind v4",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/psmsun/npm-packages.git",
+    "directory": "typography"
+  },
+  "homepage": "https://github.com/psmsun/npm-packages/tree/main/typography#readme",
+  "bugs": {
+    "url": "https://github.com/psmsun/npm-packages/issues"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "prepublishOnly": "vitest run && tsc"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "tailwind-merge": "^3.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.17",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "tailwind-merge": "^3.7.0",
+    "typescript": "^6.0.3",
+    "vitest": "^3.2.4"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "typography",
+    "title",
+    "heading",
+    "highlight",
+    "tailwind",
+    "tailwind-merge",
+    "cms",
+    "strapi",
+    "react",
+    "nextjs"
+  ],
+  "license": "MIT"
+}

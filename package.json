@@ -13,6 +13,7 @@
     "seo-utils",
     "social-embed-utils",
     "text-utils",
+    "typography",
     "video-utils"
   ],
   "scripts": {
