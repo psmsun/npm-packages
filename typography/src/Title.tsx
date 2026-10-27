@@ -70,58 +70,80 @@ const accent = (
   </span>
 );
 
-type Word = { text: string; marker?: "//" | "##" };
-
 const renderMarkers = (
   text: string,
   accentClassName?: string,
 ): ReactNode[] => {
-  const words: Word[] = [];
-
-  text.split("##").forEach((segment, index) => {
-    if (index % 2 === 1) {
-      const highlighted = segment
-        .split(/\s+/)
-        .map((token) => (token.startsWith("//") ? token.slice(2) : token))
-        .filter(Boolean)
-        .join(" ");
-      if (highlighted) words.push({ text: highlighted, marker: "##" });
-      return;
-    }
-
-    let highlightNext = false;
-    for (const token of segment.split(/\s+/)) {
-      if (!token) continue;
-      if (token === "//") {
-        highlightNext = true;
-        continue;
-      }
-      const glued = token.startsWith("//");
-      words.push({
-        text: glued ? token.slice(2) : token,
-        marker: highlightNext || glued ? "//" : undefined,
-      });
-      highlightNext = false;
-    }
-  });
-
   const parts: ReactNode[] = [];
   let plain = "";
 
-  words.forEach((word, index) => {
-    const separator = index === 0 ? "" : " ";
-    if (!word.marker) {
-      plain += separator + word.text;
-      return;
-    }
-    plain += separator;
+  const highlight = (word: string, marker: "//" | "##") => {
     if (plain) parts.push(plain);
     plain = "";
-    parts.push(accent(word.text, word.marker, index, accentClassName));
-  });
-  if (plain) parts.push(plain);
+    parts.push(accent(word, marker, parts.length, accentClassName));
+  };
 
+  text.split("##").forEach((segment, index) => {
+    // Even indexes are words (possibly empty at either end), odd indexes the whitespace between them.
+    const tokens = segment.split(/(\s+)/);
+
+    if (index % 2 === 1) {
+      const run = tokens
+        .map((token, i) =>
+          i % 2 === 1
+            ? tokens[i - 1] === "//"
+              ? ""
+              : token
+            : token.startsWith("//")
+              ? token.slice(2)
+              : token,
+        )
+        .join("")
+        .trim();
+      if (run) highlight(run, "##");
+      return;
+    }
+
+    let lastWord = -1;
+    tokens.forEach((token, i) => {
+      if (i % 2 === 0 && token) lastWord = i;
+    });
+
+    let highlightNext = false;
+    tokens.forEach((token, i) => {
+      if (i % 2 === 1) {
+        const afterMarker = tokens[i - 1] === "//" && i - 1 !== lastWord;
+        const beforeLastMarker = tokens[i + 1] === "//" && i + 1 === lastWord;
+        if (!afterMarker && !beforeLastMarker) plain += token;
+        return;
+      }
+      if (token === "//") {
+        highlightNext = true;
+        return;
+      }
+      if (!token) return;
+      const glued = token.startsWith("//");
+      if (glued || highlightNext) highlight(glued ? token.slice(2) : token, "//");
+      else plain += token;
+      highlightNext = false;
+    });
+  });
+
+  if (plain) parts.push(plain);
   return parts;
+};
+
+const textOf = (children: ReactNode): string | null => {
+  if (typeof children === "string") return children;
+  if (!Array.isArray(children)) return null;
+  const items = children.filter(
+    (child) => child != null && typeof child !== "boolean",
+  );
+  return items.every(
+    (child) => typeof child === "string" || typeof child === "number",
+  )
+    ? items.join("")
+    : null;
 };
 
 export const Title = ({
@@ -133,14 +155,13 @@ export const Title = ({
   as,
 }: TitleProps) => {
   if (!children && children !== 0) return null;
-  if (typeof children === "string" && !children.trim()) return null;
+  const text = textOf(children);
+  const parts = text === null ? null : renderMarkers(text, accentClassName);
+  if (parts && !parts.some((part) => typeof part !== "string" || part.trim()))
+    return null;
 
   const Tag = pageHeader ? "h1" : (as ?? sizeTagMap[size]);
-  const content =
-    typeof children === "string" && /\/\/|##/.test(children)
-      ? renderMarkers(children, accentClassName)
-      : children;
-  if (Array.isArray(content) && !content.length) return null;
+  const content = parts ?? children;
 
   return (
     <Tag

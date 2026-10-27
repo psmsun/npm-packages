@@ -15,7 +15,7 @@ const renderPilot = (children: ReactNode, props: Props = {}) =>
   renderToStaticMarkup(<PilotTitle {...props}>{children}</PilotTitle>);
 
 const ACCENT_SPAN =
-  /<span data-slot="title-accent" data-marker="(\/\/|##)" style="-webkit-text-fill-color:currentColor">(.*?)<\/span>/g;
+  /<span data-slot="title-accent" data-marker="(\/\/|##)" style="-webkit-text-fill-color:currentColor">([\s\S]*?)<\/span>/g;
 
 const notation = (html: string) =>
   html.replace(/^<h2 [^>]*>|<\/h2>$/g, "").replace(ACCENT_SPAN, "[$1:$2]");
@@ -26,7 +26,7 @@ const sizes: TitleSize[] = ["xs", "sm", "md", "lg", "xl", "2xl", "3xl", "4xl"];
 const requesterCases: Array<[string, string]> = [
   ["Discover // TransRussia", "Discover [//:TransRussia]"],
   ["Why Choose // TransRussia // 2027", "Why Choose [//:TransRussia] [//:2027]"],
-  ["// Inner   page // header", "[//:Inner] page [//:header]"],
+  ["// Inner   page // header", "[//:Inner]   page [//:header]"],
   ["Why Exhibit at // Weldex 2025", "Why Exhibit at [//:Weldex] 2025"],
   ["Meet ## at mitt 2027?", "Meet [##:at mitt 2027?]"],
   ["Plan //your visit ## and more // stuff", "Plan [//:your] visit [##:and more stuff]"],
@@ -35,7 +35,7 @@ const requesterCases: Array<[string, string]> = [
   ["trailing //", "trailing"],
   ["Have // Questions? //", "Have [//:Questions?]"],
   ["Why Exhibit ## At MITT 2027?", "Why Exhibit [##:At MITT 2027?]"],
-  ["Get Connected with  ##Aquaflame 2025##", "Get Connected with [##:Aquaflame 2025]"],
+  ["Get Connected with  ##Aquaflame 2025##", "Get Connected with  [##:Aquaflame 2025]"],
   ["##WorldFood## Moscow 2026", "[##:WorldFood] Moscow 2026"],
   ["A ##b## c ##d e", "A [##:b] c [##:d e]"],
   ["Plan //your visit ## and // more", "Plan [//:your] visit [##:and more]"],
@@ -52,15 +52,50 @@ const correction4Cases: Array<[string, string]> = [
   ["## ////", "[##://]"],
 ];
 
+const keepTextCases: Array<[string, string]> = [
+  ["Discover // TransRussia", "Discover [//:TransRussia]"],
+  ["Why Choose // TransRussia // 2027", "Why Choose [//:TransRussia] [//:2027]"],
+  ["// Inner   page // header", "[//:Inner]   page [//:header]"],
+  ["Have // Questions? //", "Have [//:Questions?]"],
+  ["Visit ##Moscow##, 2027", "Visit [##:Moscow], 2027"],
+  ["Get Connected with  ##Aquaflame 2025##", "Get Connected with  [##:Aquaflame 2025]"],
+  ["Line one\n// Two three", "Line one\n[//:Two] three"],
+  ["Welcome\nhttps://example.com", "Welcome\nhttps://example.com"],
+  ["See https://x.com // here", "See https://x.com [//:here]"],
+  ["##see https://x.com##", "[##:see https://x.com]"],
+  ["##a//b##", "[##:a//b]"],
+  ["Plan //your visit ## and // more", "Plan [//:your] visit [##:and more]"],
+  ["Conference// Programme", "Conference// Programme"],
+];
+
 const behaviourCases: Array<[string, string]> = [
-  ["Visit\nhttps://x.com", "Visit https://x.com"],
+  ["Visit\nhttps://x.com", "Visit\nhttps://x.com"],
   ["### title", "[##:# title]"],
   ["## a ## b", "[##:a] b"],
-  ["a##b##c", "a [##:b] c"],
-  ["##Aquaflame 2025##s", "[##:Aquaflame 2025] s"],
-  ["// ##x##", "[##:x]"],
-  ["// ##x## y", "[##:x] y"],
+  ["a##b##c", "a[##:b]c"],
+  ["##Aquaflame 2025##s", "[##:Aquaflame 2025]s"],
+  ["// ##x##", " [##:x]"],
+  ["// ##x## y", " [##:x] y"],
+  ["Plan // ##x##", "Plan [##:x]"],
+  ["##a //##", "[##:a]"],
+  ["##a  b##", "[##:a  b]"],
+  ["##a\nb##", "[##:a\nb]"],
+  ["a //b##c##", "a [//:b][##:c]"],
+  ["a // // b", "a [//:b]"],
+  ["a // \n", "a \n"],
+  ["  Lead // x", "  Lead [//:x]"],
 ];
+
+// Inputs whose markup intentionally differs from the 0.1.0 pilot.
+const changedFromPilot = new Set<string>([
+  "// Inner   page // header",
+  "Get Connected with  ##Aquaflame 2025##",
+  "Visit\nhttps://x.com",
+  "a##b##c",
+  "##Aquaflame 2025##s",
+  "// ##x##",
+  "// ##x## y",
+]);
 
 const plainStrings = [
   "Plain title",
@@ -87,12 +122,21 @@ const nullInputs: Array<[string, ReactNode]> = [
   ["[]", []],
 ];
 
+const newNullInputs: Array<[string, ReactNode]> = [
+  ['[""]', [""]],
+  ["[null]", [null]],
+  ["blank pieces", [" ", "\n"]],
+  ["marker-only pieces", [false, "  // ", undefined]],
+  ['"  // "', "  // "],
+];
+
 describe("Title key warnings", () => {
   it("logs nothing to console.error for multi-accent titles", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     render("Why Choose // TransRussia // 2027");
     render("A ##b## c ##d e // f //g", { accentClassName: "text-white" });
     renderToString(<Title>Plan //your visit ## and more // stuff</Title>);
+    render([" ", "Why Choose // TransRussia ##2027##"]);
     const calls = [...error.mock.calls];
     error.mockRestore();
     expect(calls).toEqual([]);
@@ -112,14 +156,49 @@ describe("Title markers", () => {
     expect(notation(render(input))).toBe(expected);
   });
 
+  it.each(keepTextCases)("keeps the typed text in %j", (input, expected) => {
+    expect(notation(render(input))).toBe(expected);
+  });
+
+  it("splits text nodes only at accents", () => {
+    expect(render("Visit ##Moscow##, 2027")).toBe(
+      `${HEADING}Visit <span data-slot="title-accent" data-marker="##" style="-webkit-text-fill-color:currentColor">Moscow</span>, 2027</h2>`,
+    );
+  });
+
   it("renders strings without markers exactly as given", () => {
     expect(render("  Spaced   title \n")).toBe(`${HEADING}  Spaced   title \n</h2>`);
     expect(render("Digest #3")).toBe(`${HEADING}Digest #3</h2>`);
+    expect(render("Welcome\nhttps://example.com")).toBe(`${HEADING}Welcome\nhttps://example.com</h2>`);
   });
 
-  it("leaves non-string children untouched", () => {
-    expect(render(["a // b", " c"])).toBe(`${HEADING}a // b c</h2>`);
+  it("leaves children that are not all text untouched", () => {
+    expect(render([<em key="em">x</em>, " // y"])).toBe(`${HEADING}<em>x</em> // y</h2>`);
+    expect(render([["a // b"], " c"])).toBe(`${HEADING}a // b c</h2>`);
     expect(render(<em>x // y</em>)).toBe(`${HEADING}<em>x // y</em></h2>`);
+  });
+
+  it("reads markers in children made only of text", () => {
+    expect(notation(renderToStaticMarkup(<Title> {"Discover // TransRussia"}</Title>))).toBe(
+      " Discover [//:TransRussia]",
+    );
+    expect(notation(renderToStaticMarkup(<Title>Discover // {"TransRussia"}</Title>))).toBe(
+      "Discover [//:TransRussia]",
+    );
+    expect(notation(render([null, "Visit ##Moscow##", false, ", ", 2027, undefined, true]))).toBe(
+      "Visit [##:Moscow], 2027",
+    );
+  });
+
+  it("joins children made only of text without markers into one string", () => {
+    expect(renderToString(<Title>{"a"} {"b"}</Title>)).toBe(`${HEADING}a b</h2>`);
+    expect(render([0])).toBe(`${HEADING}0</h2>`);
+  });
+
+  it("applies accentClassName to accents read from text children", () => {
+    expect(render([" ", "// a"], { accentClassName: "text-white" })).toContain(
+      'data-marker="//" class="text-white"',
+    );
   });
 
   it("escapes text inside and around accents", () => {
@@ -133,6 +212,7 @@ describe("Title markers", () => {
     expect(html).not.toContain("<!-- -->");
     expect(html).toContain(">a b <span");
     expect(html).toContain("</span> d e</h2>");
+    expect(renderToString(<Title> {"a  b // c\nd e"}</Title>)).not.toContain("<!-- -->");
   });
 });
 
@@ -140,7 +220,8 @@ describe("Title matches the pilot", () => {
   const children: ReactNode[] = [
     ...requesterCases.map(([input]) => input),
     ...correction4Cases.map(([input]) => input),
-    ...behaviourCases.map(([input]) => input),
+    "### title",
+    "## a ## b",
     ...plainStrings,
     ...nullInputs.map(([, input]) => input),
     "<b>x</b> // <i>y</i>",
@@ -148,9 +229,13 @@ describe("Title matches the pilot", () => {
     0,
     2027,
     <em key="em">Emphasis</em>,
-    [""],
-    ["a // b", " c"],
-  ];
+    [<em key="em">x</em>, " // y"],
+    [["a // b"], " c"],
+  ].filter((child) => typeof child !== "string" || !changedFromPilot.has(child));
+
+  it.each([...changedFromPilot])("differs from the pilot on purpose for %j", (input) => {
+    expect(render(input)).not.toBe(renderPilot(input));
+  });
 
   const variants: Array<[string, Props]> = [
     ["defaults", {}],
@@ -279,16 +364,12 @@ describe("Title class merge", () => {
 });
 
 describe("Title null guard", () => {
-  it.each(nullInputs)("renders nothing for %s", (_, input) => {
+  it.each([...nullInputs, ...newNullInputs])("renders nothing for %s", (_, input) => {
     expect(render(input)).toBe("");
   });
 
   it("renders 0", () => {
     expect(render(0)).toBe(`${HEADING}0</h2>`);
-  });
-
-  it('renders an empty heading for [""]', () => {
-    expect(render([""])).toBe(`${HEADING}</h2>`);
   });
 });
 

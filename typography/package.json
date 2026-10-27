@@ -1,6 +1,6 @@
 {
   "name": "@prismetic/typography",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Title heading with size-mapped tags and // and ## accent markers for CMS titles — React 18+ / Tailwind v4",
   "type": "module",
   "main": "dist/index.js",

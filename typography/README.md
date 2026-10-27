@@ -92,8 +92,9 @@ or as theme tokens:
 
 ## Markers
 
-Editors type markers in the CMS title. They are read only when `children` is a
-single string.
+Editors type markers in the CMS title. They are read when `children` is a
+string, or an array made only of strings and numbers (`null`, `undefined` and
+booleans are skipped), which is joined into one string first.
 
 | Marker | Highlights |
 | --- | --- |
@@ -105,11 +106,22 @@ Not markers, rendered as typed: `word//` (a CMS content fix, not a marker), a
 single `#` (`Digest #3`), the `//` in `https://x.com`. Inside a `##` run, only a
 standalone `//` or one leading `//` on a word is dropped: `## //a//b` → `a//b`.
 
+Only the markers are removed; every other character, including spaces, newlines
+and punctuation, stays as typed, so `whitespace-pre-line` headings keep their
+line breaks:
+
+- a standalone `//` goes together with the whitespace after it, or, when it is
+  the last word before the end or a `##`, with the whitespace before it;
+- a leading `//` on a word and the `##` delimiters go on their own;
+- a `##` run is trimmed after its markers are removed; whitespace inside it stays.
+
+A string with no marker at all renders exactly as given.
+
 | CMS title | Renders as (accent as `[marker:text]`) |
 | --- | --- |
 | `Discover // TransRussia` | `Discover [//:TransRussia]` |
 | `Why Choose // TransRussia // 2027` | `Why Choose [//:TransRussia] [//:2027]` |
-| `// Inner   page // header` | `[//:Inner] page [//:header]` |
+| `// Inner   page // header` | `[//:Inner]   page [//:header]` |
 | `Why Exhibit at // Weldex 2025` | `Why Exhibit at [//:Weldex] 2025` |
 | `Meet ## at mitt 2027?` | `Meet [##:at mitt 2027?]` |
 | `Plan //your visit ## and more // stuff` | `Plan [//:your] visit [##:and more stuff]` |
@@ -118,16 +130,19 @@ standalone `//` or one leading `//` on a word is dropped: `## //a//b` → `a//b`
 | `trailing //` | `trailing` |
 | `Have // Questions? //` | `Have [//:Questions?]` |
 | `Why Exhibit ## At MITT 2027?` | `Why Exhibit [##:At MITT 2027?]` |
-| `Get Connected with  ##Aquaflame 2025##` | `Get Connected with [##:Aquaflame 2025]` |
+| `Get Connected with  ##Aquaflame 2025##` | `Get Connected with  [##:Aquaflame 2025]` |
 | `##WorldFood## Moscow 2026` | `[##:WorldFood] Moscow 2026` |
 | `A ##b## c ##d e` | `A [##:b] c [##:d e]` |
 | `Plan //your visit ## and // more` | `Plan [//:your] visit [##:and more]` |
 | `Conference// Programme` | `Conference// Programme` |
 | `Digest #3` | `Digest #3` |
+| `Visit ##Moscow##, 2027` | `Visit [##:Moscow], 2027` |
+| `Line one⏎// Two three` | `Line one⏎[//:Two] three` |
+| `Welcome⏎https://example.com` | `Welcome⏎https://example.com` |
 
-JSX with an expression in it passes an array, not a string, so its markers are
-not read. `<Title>Discover // {site}</Title>` renders `//` literally; pass one
-string instead: ``<Title>{`Discover // ${site}`}</Title>``.
+JSX with an expression in it passes an array, so `<Title>Discover // {site}</Title>`
+and `<Title> {data.Title}</Title>` are read like one string. An array holding
+anything else, such as an element, renders untouched.
 
 ## Styling hooks
 
@@ -232,7 +247,7 @@ AirventV2's underline bar under the heading, opted into per title with
 
 | prop | type | default | |
 | --- | --- | --- | --- |
-| `children` | `ReactNode` | — | markers are read only in a single string; anything else renders untouched |
+| `children` | `ReactNode` | — | markers are read in a string or an array of only strings and numbers; anything else renders untouched |
 | `size` | `TitleSize` | `"xl"` | picks `text-size-<size>` and the default tag |
 | `pageHeader` | `boolean` | `false` | renders `h1`; beats `as` |
 | `as` | `ElementType` | — | overrides the size's tag |
@@ -258,11 +273,10 @@ What renders for edge-case `children`:
 
 | `children` | renders |
 | --- | --- |
-| `undefined`, `null`, `false`, `""`, `[]` | `null` |
-| a blank string | `null` |
-| a string whose markers leave nothing: `"//"`, `"##"`, `"####"`, `"## ##"`, `"// ##"` | `null` |
-| `0` | a heading containing `0` |
-| `[""]` | an empty heading, as the pilot did |
+| `undefined`, `null`, `false`, `""`, `[]`, `[""]`, `[null]` | `null` |
+| a blank string, or an array of only blank strings | `null` |
+| text whose markers leave only whitespace: `"//"`, `"##"`, `"####"`, `"## ##"`, `"// ##"`, `"  // "` | `null` |
+| `0`, `[0]` | a heading containing `0` |
 
 ### Type exports
 
@@ -284,15 +298,15 @@ There is no default export.
 ## Behaviour notes
 
 - Precedence: `pageHeader` beats `as`.
-- Any string containing `//` or `##` anywhere is split on whitespace and
-  rejoined with single spaces, even when nothing in it is a marker
-  (`"Visit\nhttps://x.com"` → `"Visit https://x.com"`). Strings with neither
-  render exactly as given.
+- Text outside the markers is kept exactly as typed, newlines and repeated
+  spaces included.
 - `##` pairs left to right; an odd one out runs to the end. `"### title"` →
   `[##:# title]`; `"## a ## b"` → `[##:a] b`.
-- A `##` glued to a word still separates it with a space: `"a##b##c"` →
-  `a [##:b] c`, `"##Aquaflame 2025##s"` → `[##:Aquaflame 2025] s`.
-- A `//` right before a `##` run is dropped: `"// ##x##"` → `[##:x]`.
+- A `##` glued to a word adds no space: `"a##b##c"` → `a[##:b]c`,
+  `"Visit ##Moscow##, 2027"` → `Visit [##:Moscow], 2027`.
+- A `//` right before a `##` run highlights nothing and goes with the
+  whitespace before it: `"Plan // ##x##"` → `Plan [##:x]`, `"// ##x##"` →
+  ` [##:x]`.
 - `word//` stays literal; that is a CMS content fix, not a marker.
 - `className="text-size-sm"` replaces the size class, but `data-size` still
   reports the `size` prop.
@@ -304,20 +318,37 @@ There is no default export.
 - Plain words between two accents form one text node, so `renderToString` adds
   no `<!-- -->` separators inside them.
 
+## Upgrading to 0.1.1
+
+No code change is needed. What a site sees:
+
+- Titles with markers keep their text as typed. 0.1.0 split any string
+  containing `//` or `##` on whitespace and rejoined it with single spaces, so
+  newlines in `whitespace-pre-line` headings and repeated spaces were lost, a
+  space was added around a glued `##` (`"Visit ##Moscow##, 2027"` gave
+  `Visit [##:Moscow] , 2027`), and a URL's `//` alone was enough to collapse a
+  title. Only the markers are removed now.
+- `<Title> {data.Title}</Title>` and `<Title>Discover // {site}</Title>` read
+  their markers. 0.1.0 read markers only in a single string child.
+- `[""]`, `[null]` and other text-only children that are blank render nothing
+  instead of an empty heading.
+
 ## Development
 
 ```bash
-npm test -w typography     # vitest — 103 tests, against the pilot Title as an oracle
+npm test -w typography     # vitest — 139 tests, against the 0.1.0 pilot Title as an oracle
 npm run build -w typography
 ```
 
 The oracle is the pilot site `Title` copied byte-for-byte into
 `src/__fixtures__/`, rendered through the pilot sites' real `cn`. The tests
-prove the package renders the same markup for every listed input (all marker
-cases, the behaviour notes, plain strings, the null-guard inputs, numbers, an
-element, arrays) under each of 22 prop combinations (every size, `pageHeader`,
-`as`, `className` merges, `accentClassName`), with no exclusions. They also pin
-the 17 requester cases and the 6 inside-`##` cases above, the tags, attributes
-and class merge, the null guard, one text node between accents, no React key
+prove the package renders the same markup for every listed input (marker
+cases, plain strings, the null-guard inputs, numbers, an element, arrays)
+under each of 22 prop combinations (every size, `pageHeader`, `as`, `className`
+merges, `accentClassName`). The seven inputs whose spacing changed in 0.1.1 are
+excluded from it, and a test proves each really differs from the pilot. They
+also pin the 17 requester cases, the 6 inside-`##` cases, the 13 kept-text
+cases, the behaviour notes, text-only array children, the tags, attributes and
+class merge, the null guard, one text node between accents, no React key
 warnings, every `"text-size-<size>"` as a full literal in the source and no
 `"use client"`.

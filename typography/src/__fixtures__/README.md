@@ -12,3 +12,7 @@ here. Transrussia's copy has the same `extendTailwindMerge` config.
 `Title.test.tsx` proves the package renders the same markup as the pilot for every input
 it lists, with no exclusions. Not shipped (see `files` in package.json) and excluded from
 tsc.
+
+From 0.1.1 the package keeps the typed text around markers, so the seven inputs in
+`changedFromPilot` in `Title.test.tsx` intentionally render differently from this
+fixture; each has its own expected output, and a test proves it differs.
