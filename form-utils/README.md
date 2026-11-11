@@ -268,6 +268,11 @@ is the provider's legacy `new.css`, whose `!important` rules override `styles.cs
 `<link>`, and the widget's own `<script>`, stays. A Wisent sheet loaded by `@import` inside a
 `<style>` block is not caught.
 
+`styles.css` keeps the one `new.css` rule the forms depend on: it hides the five UTM textbox
+questions (utmcampaign, utmcontent, utmmedium, utmsource, utmterm) by their `q_<questionId>` group
+class. Without `styles.css` those questions render as empty visible fields. A hidden question that
+fails validation shows again, because the widget then swaps `q_<questionId>` for `has-error`.
+
 ### reCAPTCHA host
 
 `www.google.com` is blocked in mainland China, so a reCAPTCHA loaded from it fails there.
@@ -483,6 +488,13 @@ before gathering any evidence, and absence of evidence isn't grounds to reject.
   fall-through returns the same verdict for any `has_dns_mx` response. Harmless,
   but it reads as if it does more than it does.
 
+## Upgrading to 1.3.5
+
+No code change is needed. `styles.css` hides the five UTM questions in the Wisent widget again
+(`.container-registration #ite_vr .q_628b4eee…` and four more). Wisent's `new.css` hid them until
+1.3.3 began stripping it, so since then they rendered as empty fields labelled utmcampaign,
+utmcontent, utmmedium, utmsource and utmterm.
+
 ## Upgrading to 1.3.4
 
 No code change is needed. What a site sees:
@@ -534,12 +546,12 @@ No code change is needed. What a site sees:
 ## Development
 
 ```bash
-npm test -w form-utils     # vitest — 113 tests
+npm test -w form-utils     # vitest — 121 tests
 npm run build -w form-utils
 ```
 
 Tests cover the pure helpers in `form-utils.ts` and `recaptcha.ts`, and in happy-dom the tooltip
-placement, all three hooks and `HTMLContent`. Without `recaptchaHost`, `HTMLContent`'s injected
+placement, all three hooks, `HTMLContent` and the hidden-question rule in `styles.css`. Without `recaptchaHost`, `HTMLContent`'s injected
 DOM and server markup must equal 1.2.1's (kept byte-identical in
 `src/__fixtures__/HTMLContent-1.2.1.ts`), apart from the dropped Wisent stylesheets.
 `useNeverBounceEmailGate` runs against a stub `window._nb` with the form markup inserted by

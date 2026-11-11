@@ -309,6 +309,19 @@
 }
 
 /* ============================================================
+   Hidden questions
+   ============================================================ */
+
+/* Hidden by Wisent's new.css, which HTMLContent strips. */
+.container-registration #ite_vr .q_628b4eee1cca9b0b10953e1b,
+.container-registration #ite_vr .q_628b4f031cca9b0b10953e1d,
+.container-registration #ite_vr .q_628b4f121cca9b0b10953e1e,
+.container-registration #ite_vr .q_628b4f2c1cca9b0b10953e24,
+.container-registration #ite_vr .q_628b4f3b1cca9b0b10953e28 {
+  display: none;
+}
+
+/* ============================================================
    Responsive
    ============================================================ */
 
